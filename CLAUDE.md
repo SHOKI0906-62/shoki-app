@@ -45,9 +45,10 @@
 - 電波がなくて失敗したら「未反映」と表示し、あとで再送できるようにする
 
 ## セキュリティ（最優先）
-- Firestore ルール：ログインした本人の UID **だけ**が `users/{UID}/...` を読み書きできる。UID はルールに直接書く（万一ほかのアカウントができても読めない）。それ以外は全部拒否
+- Firestore ルール（`firestore.rules`）：ログインした本人の UID（2bMt67SKhqSAz4LjSa5knTxjcQt2）**だけ**が `users/{UID}/...` を読み書きできる。UID はルールに直接書く（万一ほかのアカウントができても読めない）。それ以外は全部拒否
 - 新規登録（サインアップ）をできないようにする（Firebase の設定＋ルールの二重の鍵）
 - メールアドレス列挙保護（Email enumeration protection）を ON
+- Googleログイン・SMS多要素認証・Identity Platform へのアップグレードは使わない（iPhoneのホーム画面で不安定／有料のため）
 - 公開後、**ログインしていない状態でデータが読めないこと**をテストする（Firestore の REST API にログインなしで頼んで「拒否」されるか確認）
 - データの場所は東京（asia-northeast1）
 - GitHub のリポジトリにはお客さんのデータを**絶対に入れない**（コードだけ）。バックアップファイルもリポジトリに入れない
@@ -56,7 +57,7 @@
 - 個人情報保護法：健康の情報は「要配慮個人情報」。初回に同意をもらう（問診票などに一文）
 
 ## ファイル
-- `CLAUDE.md` 決まったこと / `js/firebase-config.js` Firebaseの設定値 / `SETUP.md` 本人の準備手順 / `.gitignore` バックアップファイルをリポジトリに入れないための設定
+- `CLAUDE.md` 決まったこと / `js/firebase-config.js` Firebaseの設定値 / `firestore.rules` データの鍵 / `SETUP.md` 本人の準備手順 / `.gitignore` バックアップファイルをリポジトリに入れないための設定
 
 ## データの形（Firestore・案）
 - `users/{uid}/clients/{id}` 顧客：`{lastName:'田中', firstName:'健一', initial:'K', kana?, ageGroup:'40代', gender, height, weight, job:'経営者'|'会社員'|…, referral:{type:'person'|'card'|'other', clientId?, name?}, firstVisit:'YYYY-MM-DD', memo, createdAt}`
@@ -77,7 +78,8 @@
 - [ ] ステップ0：本人の準備（GitHub・Firebase・Google カレンダー）→ SETUP.md（2026-10-10 開始）
   - [x] GitHub リポジトリ shoki-app 作成（2026-10-10、Public）
   - [x] Firebase プロジェクト作成（ID：shoki-app-efb45、Spark＝無料）・Webアプリ登録 → `js/firebase-config.js`
-  - [ ] Authentication（メール/パスワード・ユーザー追加・UID・登録オフ）
+  - [x] Authentication：メール/パスワード有効、ユーザー t.shoki16@gmail.com 追加（UID：`2bMt67SKhqSAz4LjSa5knTxjcQt2`）
+  - [ ] Authentication の設定：新規登録オフ・メール列挙保護
   - [ ] Firestore（東京・本番環境モード）
   - [ ] Google カレンダー（カレンダーID）
 - [ ] ステップ1：土台＋顧客台帳＋バックアップ

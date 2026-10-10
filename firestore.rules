@@ -1,0 +1,12 @@
+rules_version = '2';
+// データの鍵：本人（UID 2bMt67SKhqSAz4LjSa5knTxjcQt2）だけが自分のデータを読み書きできる。
+// それ以外（ログインしていない人・ほかのアカウント・ほかの場所）は全部拒否。
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{uid}/{document=**} {
+      allow read, write: if request.auth != null
+                         && request.auth.uid == uid
+                         && uid == '2bMt67SKhqSAz4LjSa5knTxjcQt2';
+    }
+  }
+}

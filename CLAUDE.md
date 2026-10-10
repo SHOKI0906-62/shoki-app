@@ -84,7 +84,8 @@
   - [x] 新規登録オフ・削除オフ（2026-10-10）。Google Cloud の Identity Platform → 設定 → ユーザー → ユーザー アクション で設定
     - テスト：ログインなしで新規登録を試すと ADMIN_ONLY_OPERATION（拒否）になることを確認済み
     - 設定画面：https://console.cloud.google.com/customer-identity/settings?project=shoki-app-efb45&authuser=t.shoki16@gmail.com （Firebase の画面にはない）
-  - [ ] Firestore（東京・本番環境モード）
+  - [x] Firestore 作成（(default)、asia-northeast1、本番環境モード）。ログインなしの読み書きが 403 で拒否されることを確認済み（2026-10-10）
+  - [ ] Firestore のルールに `firestore.rules` を貼り付けて公開
   - [ ] Google カレンダー（カレンダーID）
 - [ ] ステップ1：土台＋顧客台帳＋バックアップ
   - ログイン、セキュリティルール、未ログインで読めないことのテスト

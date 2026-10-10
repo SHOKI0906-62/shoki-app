@@ -86,7 +86,9 @@
     - 設定画面：https://console.cloud.google.com/customer-identity/settings?project=shoki-app-efb45&authuser=t.shoki16@gmail.com （Firebase の画面にはない）
   - [x] Firestore 作成（(default)、asia-northeast1、本番環境モード）。ログインなしの読み書きが 403 で拒否されることを確認済み（2026-10-10）
   - [x] Firestore のルールに `firestore.rules` を貼り付けて公開（2026-10-10）。公開後もログインなしは全部 403 を確認。ルールを変えたら Firebase の「ルール」にも貼り直して公開する
-  - [ ] Google カレンダー（カレンダーID）
+  - [x] Google カレンダー「昇起施術所 予約」作成（2026-10-10、t.shoki16）。※別に「昇起施術所」というカレンダーもある（用途を本人に確認中）。アプリが書き込むのは「予約」の方だけ
+  - [ ] カレンダーIDを受け取る（次回ここから：「昇起施術所 予約」の ⋮ → 設定と共有 → カレンダーの統合 → カレンダー ID）。一般公開がオフかも確認
+  - メモ：タブレットの Chrome は golf.shoki.1987 が既定アカウント。リンクには `authuser=t.shoki16@gmail.com` を付ける。カレンダーは Chrome の「PC版サイト」で開く
 - [ ] ステップ1：土台＋顧客台帳＋バックアップ
   - ログイン、セキュリティルール、未ログインで読めないことのテスト
   - 顧客の登録・編集・一覧・検索（年代・性別・職業・紹介元はボタンで選ぶ）

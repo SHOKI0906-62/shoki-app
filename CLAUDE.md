@@ -81,7 +81,9 @@
   - [x] GitHub リポジトリ shoki-app 作成（2026-10-10、Public）
   - [x] Firebase プロジェクト作成（ID：shoki-app-efb45、Spark＝無料）・Webアプリ登録 → `js/firebase-config.js`
   - [x] Authentication：メール/パスワード有効、ユーザー t.shoki16@gmail.com 追加（UID：`2bMt67SKhqSAz4LjSa5knTxjcQt2`）
-  - [ ] Authentication の設定：新規登録オフ・メール列挙保護
+  - [x] 新規登録オフ・削除オフ（2026-10-10）。Google Cloud の Identity Platform → 設定 → ユーザー → ユーザー アクション で設定
+    - テスト：ログインなしで新規登録を試すと ADMIN_ONLY_OPERATION（拒否）になることを確認済み
+    - 設定画面：https://console.cloud.google.com/customer-identity/settings?project=shoki-app-efb45&authuser=t.shoki16@gmail.com （Firebase の画面にはない）
   - [ ] Firestore（東京・本番環境モード）
   - [ ] Google カレンダー（カレンダーID）
 - [ ] ステップ1：土台＋顧客台帳＋バックアップ

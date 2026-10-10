@@ -56,7 +56,7 @@
 - 個人情報保護法：健康の情報は「要配慮個人情報」。初回に同意をもらう（問診票などに一文）
 
 ## ファイル
-- `CLAUDE.md` 決まったこと / `SETUP.md` 本人の準備手順 / `.gitignore` バックアップファイルをリポジトリに入れないための設定
+- `CLAUDE.md` 決まったこと / `js/firebase-config.js` Firebaseの設定値 / `SETUP.md` 本人の準備手順 / `.gitignore` バックアップファイルをリポジトリに入れないための設定
 
 ## データの形（Firestore・案）
 - `users/{uid}/clients/{id}` 顧客：`{lastName:'田中', firstName:'健一', initial:'K', kana?, ageGroup:'40代', gender, height, weight, job:'経営者'|'会社員'|…, referral:{type:'person'|'card'|'other', clientId?, name?}, firstVisit:'YYYY-MM-DD', memo, createdAt}`
@@ -76,7 +76,9 @@
 ## 作る順番
 - [ ] ステップ0：本人の準備（GitHub・Firebase・Google カレンダー）→ SETUP.md（2026-10-10 開始）
   - [x] GitHub リポジトリ shoki-app 作成（2026-10-10、Public）
-  - [ ] Firebase（firebaseConfig・UID）
+  - [x] Firebase プロジェクト作成（ID：shoki-app-efb45、Spark＝無料）・Webアプリ登録 → `js/firebase-config.js`
+  - [ ] Authentication（メール/パスワード・ユーザー追加・UID・登録オフ）
+  - [ ] Firestore（東京・本番環境モード）
   - [ ] Google カレンダー（カレンダーID）
 - [ ] ステップ1：土台＋顧客台帳＋バックアップ
   - ログイン、セキュリティルール、未ログインで読めないことのテスト

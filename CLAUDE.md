@@ -48,7 +48,9 @@
 - Firestore ルール（`firestore.rules`）：ログインした本人の UID（2bMt67SKhqSAz4LjSa5knTxjcQt2）**だけ**が `users/{UID}/...` を読み書きできる。UID はルールに直接書く（万一ほかのアカウントができても読めない）。それ以外は全部拒否
 - 新規登録（サインアップ）をできないようにする（Firebase の設定＋ルールの二重の鍵）
 - メールアドレス列挙保護（Email enumeration protection）を ON
-- Googleログイン・SMS多要素認証・Identity Platform へのアップグレードは使わない（iPhoneのホーム画面で不安定／有料のため）
+- Googleログイン・SMS多要素認証は使わない（iPhoneのホーム画面で不安定／SMSは有料のため）
+- Identity Platform へアップグレード済み（2026-10-10、Sparkのまま無料。1日3,000人まで）。新規登録オフの設定（ユーザー アクション）を出すため。元には戻せない
+- Blaze（有料プラン）にはしない
 - 公開後、**ログインしていない状態でデータが読めないこと**をテストする（Firestore の REST API にログインなしで頼んで「拒否」されるか確認）
 - データの場所は東京（asia-northeast1）
 - GitHub のリポジトリにはお客さんのデータを**絶対に入れない**（コードだけ）。バックアップファイルもリポジトリに入れない

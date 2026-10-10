@@ -1,0 +1,6 @@
+# お客さんのデータ（バックアップ）は絶対にリポジトリに入れない
+*backup*.json
+*backup*.enc
+*.xlsx
+*.csv
+.DS_Store

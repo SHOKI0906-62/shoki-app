@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <!-- 読み込んでよい場所を限定する（知らない場所のプログラムを動かさないための鍵） -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com; connect-src 'self' https://*.googleapis.com https://www.gstatic.com; frame-src https://shoki-app-efb45.firebaseapp.com; img-src 'self' data:; style-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+  <meta name="referrer" content="no-referrer">
+  <meta name="robots" content="noindex, nofollow">
+  <title>昇起施術所</title>
+  <meta name="theme-color" content="#1d3b5c">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="昇起施術所">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <link rel="stylesheet" href="css/style.css?v=1">
+</head>
+<body>
+  <p id="loading" class="loading">読み込み中…</p>
+
+  <!-- ログイン画面 -->
+  <section id="login" class="page" hidden>
+    <h1>昇起施術所</h1>
+    <form id="loginForm" class="card">
+      <label>メールアドレス<input type="email" name="email" autocomplete="username" required></label>
+      <label>パスワード<input type="password" name="pw" autocomplete="current-password" required></label>
+      <label class="check"><input type="checkbox" id="showPw"> パスワードを表示</label>
+      <button class="btn primary big">ログイン</button>
+      <p id="loginError" class="error"></p>
+    </form>
+    <p class="muted small center">一度ログインすると、ログアウトするまでこの端末ではログインしたままです。</p>
+  </section>
+
+  <main id="app" hidden>
+    <div id="localBanner" class="banner" hidden>お試しモード：この端末だけに保存しています（本物のお客さん情報は入れないでください）</div>
+
+    <!-- 顧客一覧 -->
+    <section id="tab-clients" class="page">
+      <h1>お客さん</h1>
+      <button class="btn primary big" id="newClient">＋ お客さんを登録</button>
+      <input id="clientSearch" class="search" type="search" placeholder="名前・よみがなでさがす" autocomplete="off">
+      <p id="clientCount" class="muted small"></p>
+      <ul id="clientList" class="list"></ul>
+    </section>
+
+    <!-- 顧客の詳細 -->
+    <section id="view-detail" class="page" hidden>
+      <button class="back" data-back>‹ 一覧にもどる</button>
+      <div id="detailBody"></div>
+      <div class="grid two">
+        <button class="btn primary" id="editClient">✏️ 編集</button>
+        <button class="btn danger" id="removeClient">削除</button>
+      </div>
+      <h2>来院履歴</h2>
+      <p class="muted">ステップ3（カルテ）で、ここに来院の記録が並びます。</p>
+    </section>
+
+    <!-- 顧客の登録・編集 -->
+    <section id="view-form" class="page" hidden>
+      <button class="back" data-back>‹ もどる</button>
+      <h1 id="formTitle">お客さんを登録</h1>
+      <form id="clientForm" autocomplete="off">
+        <div class="card">
+          <div class="grid two tight">
+            <label>名字<input name="lastName" required placeholder="田中"></label>
+            <label>下の名前<input name="firstName" placeholder="健一"></label>
+          </div>
+          <label>よみがな（ひらがな・並べ替えと検索に使います）<input name="kana" placeholder="たなか けんいち"></label>
+          <div class="field">
+            <div class="field-label">下の名前の頭文字（カレンダーに「<b id="calPreview">田中K</b> 90分」と出ます）</div>
+            <div id="initialChips" class="chips initials"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="field"><div class="field-label">年代</div><div id="ageChips" class="chips"></div></div>
+          <div class="field"><div class="field-label">性別</div><div id="genderChips" class="chips"></div></div>
+          <div class="grid two tight">
+            <label>身長（cm）<input name="height" inputmode="decimal" placeholder="175"></label>
+            <label>体重（kg）<input name="weight" inputmode="decimal" placeholder="70"></label>
+          </div>
+          <div class="field"><div class="field-label">職業</div><div id="jobChips" class="chips"></div></div>
+        </div>
+
+        <div class="card">
+          <div class="field"><div class="field-label">紹介元</div><div id="refChips" class="chips"></div></div>
+          <label id="refPersonRow" hidden>紹介してくれた人（登録済みのお客さん）
+            <select name="refClientId"><option value="">— 選ぶ —</option></select>
+          </label>
+          <label id="refNameRow" hidden>紹介してくれた人（登録していない人・メモ）<input name="refName" placeholder="例：〇〇ゴルフ場の山本さん"></label>
+          <label>初回来院日
+            <span class="date-row"><input type="date" name="firstVisit"><button type="button" class="chip" id="todayBtn">今日</button></span>
+          </label>
+          <label>メモ<textarea name="memo" rows="3" placeholder="ゴルフ歴、好み、注意点など"></textarea></label>
+        </div>
+
+        <button class="btn primary big">保存</button>
+      </form>
+    </section>
+
+    <!-- 設定 -->
+    <section id="tab-settings" class="page" hidden>
+      <h1>設定</h1>
+      <div class="card">
+        <h3>バックアップ</h3>
+        <p class="small">全部のデータを1つのファイル（JSON）に書き出します。<b>お客さんの健康情報が入っている</b>ので、人に渡したり、共有フォルダやGitHubに置いたりしないでください。</p>
+        <button class="btn" id="exportBtn">💾 バックアップを保存</button>
+        <p id="lastBackup" class="muted small"></p>
+      </div>
+
+      <form id="settingsForm" class="card">
+        <h3>ボタンの中身</h3>
+        <p class="muted small">1行に1つずつ書きます。並び順がそのままボタンの順番になります。</p>
+        <label>年代<textarea name="ageGroups" rows="4"></textarea></label>
+        <label>性別<textarea name="genders" rows="2"></textarea></label>
+        <label>職業<textarea name="jobs" rows="6"></textarea></label>
+        <button class="btn primary">保存</button>
+      </form>
+
+      <div class="card">
+        <p id="userInfo" class="muted"></p>
+        <p class="small">ログアウトすると、この端末に残っているお客さんのデータの控えも消えます。</p>
+        <button class="btn" id="logoutBtn">ログアウト</button>
+      </div>
+    </section>
+
+    <nav class="tabbar">
+      <button data-tab="clients" class="active">👥<span>お客さん</span></button>
+      <button data-tab="settings">⚙️<span>設定</span></button>
+    </nav>
+  </main>
+
+  <div id="toast" class="toast" hidden><span id="toastText"></span></div>
+
+  <script type="module" src="js/app.js?v=1"></script>
+</body>
+</html>

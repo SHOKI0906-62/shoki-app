@@ -77,7 +77,7 @@
 - 無料招待→有料リピート：初回が無料招待で、そのあと有料の来院が1回以上ある人の数
 
 ## 作る順番
-- [ ] ステップ0：本人の準備（GitHub・Firebase・Google カレンダー）→ SETUP.md（2026-10-10 開始）
+- [x] ステップ0：本人の準備（GitHub・Firebase・Google カレンダー）→ SETUP.md（2026-10-10 開始、10-11 完了）
   - [x] GitHub リポジトリ shoki-app 作成（2026-10-10、Public）
   - [x] Firebase プロジェクト作成（ID：shoki-app-efb45、Spark＝無料）・Webアプリ登録 → `js/firebase-config.js`
   - [x] Authentication：メール/パスワード有効、ユーザー t.shoki16@gmail.com 追加（UID：`2bMt67SKhqSAz4LjSa5knTxjcQt2`）
@@ -86,8 +86,8 @@
     - 設定画面：https://console.cloud.google.com/customer-identity/settings?project=shoki-app-efb45&authuser=t.shoki16@gmail.com （Firebase の画面にはない）
   - [x] Firestore 作成（(default)、asia-northeast1、本番環境モード）。ログインなしの読み書きが 403 で拒否されることを確認済み（2026-10-10）
   - [x] Firestore のルールに `firestore.rules` を貼り付けて公開（2026-10-10）。公開後もログインなしは全部 403 を確認。ルールを変えたら Firebase の「ルール」にも貼り直して公開する
-  - [x] Google カレンダー「昇起施術所 予約」作成（2026-10-10、t.shoki16）。※別に「昇起施術所」というカレンダーもある（用途を本人に確認中）。アプリが書き込むのは「予約」の方だけ
-  - [ ] カレンダーIDを受け取る（次回ここから：「昇起施術所 予約」の ⋮ → 設定と共有 → カレンダーの統合 → カレンダー ID）。一般公開がオフかも確認
+  - [x] Google カレンダー「昇起施術所 予約」作成（2026-10-10、t.shoki16）。※別に「昇起施術所」（赤）というカレンダーもある。本人も作った経緯を覚えていない。テスト予定「夜飲み会」が入っていた。アプリが書き込むのは「予約」の方だけ
+  - [x] カレンダーID受け取り済み（2026-10-11）。公開リポジトリには書かない（GAS の中にだけ書く）。必要なら本人に再確認：⚙ → 設定 → マイカレンダーの設定 → 昇起施術所 予約 → カレンダーの統合
   - メモ：タブレットの Chrome は golf.shoki.1987 が既定アカウント。リンクには `authuser=t.shoki16@gmail.com` を付ける。カレンダーは Chrome の「PC版サイト」で開く
 - [ ] ステップ1：土台＋顧客台帳＋バックアップ
   - ログイン、セキュリティルール、未ログインで読めないことのテスト

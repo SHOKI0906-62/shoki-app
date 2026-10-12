@@ -73,11 +73,16 @@ $('loginForm').addEventListener('submit', async (e) => {
     await signIn(f.email.value.trim(), f.pw.value);
     f.pw.value = '';
   } catch (err) {
-    const code = err.code || '';
-    $('loginError').textContent =
+    const code = err.code || err.name || 'unknown';
+    const msg =
       code.includes('too-many-requests') ? '何度も失敗したので、しばらく待ってからもう一度試してください。'
-      : code.includes('network') ? '電波がつながっていません。'
-      : 'メールアドレスかパスワードがちがいます。';
+      : code.includes('network') ? '電波がつながっていないか、通信がブロックされています。'
+      : code.includes('invalid-credential') || code.includes('wrong-password') || code.includes('user-not-found') || code.includes('invalid-email')
+        ? 'メールアドレスかパスワードがちがいます。'
+        : 'ログインできませんでした。';
+    // 原因を調べられるように、エラーの種類（英語）も小さく出す
+    $('loginError').textContent = `${msg}（${code}）`;
+    console.error(err);
   } finally {
     f.querySelector('button').disabled = false;
   }

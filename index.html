@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <!-- 読み込んでよい場所を限定する（知らない場所のプログラムを動かさないための鍵） -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com; connect-src 'self' https://*.googleapis.com https://www.gstatic.com; frame-src https://shoki-app-efb45.firebaseapp.com; img-src 'self' data:; style-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com; connect-src 'self' https://*.googleapis.com https://www.gstatic.com https://script.google.com https://script.googleusercontent.com; frame-src https://shoki-app-efb45.firebaseapp.com; img-src 'self' data:; style-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
   <meta name="referrer" content="no-referrer">
   <meta name="robots" content="noindex, nofollow">
   <title>昇起施術所</title>
@@ -15,7 +15,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-180.png">
-  <link rel="stylesheet" href="css/style.css?v=2">
+  <link rel="stylesheet" href="css/style.css?v=3">
 </head>
 <body>
   <p id="loading" class="loading">読み込み中…</p>
@@ -36,8 +36,61 @@
   <main id="app" hidden>
     <div id="localBanner" class="banner" hidden>お試しモード：この端末だけに保存しています（本物のお客さん情報は入れないでください）</div>
 
+    <!-- 予約 -->
+    <section id="tab-resv" class="page">
+      <h1>予約</h1>
+      <div id="dayStrip" class="day-strip"></div>
+      <div class="day-head">
+        <h2 id="dayTitle"></h2>
+        <input type="date" id="dayPicker" aria-label="日付をえらぶ">
+      </div>
+      <ul id="resvList" class="list"></ul>
+      <button class="btn primary big" id="newResv">＋ 予約を入れる</button>
+      <p id="calWarn" class="banner-inline" hidden>カレンダー連携がまだ設定されていません（設定 → カレンダー連携）。予約はアプリに保存されます。</p>
+    </section>
+
+    <!-- 予約の入力・変更 -->
+    <section id="view-resvform" class="page" hidden>
+      <button class="back" data-back>‹ もどる</button>
+      <h1 id="resvFormTitle">予約を入れる</h1>
+      <div class="card">
+        <div class="field-label">① 日付</div>
+        <div id="rfDays" class="chips"></div>
+        <label class="inline-date">ほかの日：<input type="date" id="rfDate"></label>
+      </div>
+      <div class="card">
+        <div class="field-label">② 時間 <span class="muted small">（灰色＝ほかの予約あり）</span></div>
+        <div id="rfTimes" class="chips times"></div>
+      </div>
+      <div class="card">
+        <div class="field-label">③ お客さん</div>
+        <input id="rfClientSearch" class="search" type="search" placeholder="名前・よみがなでさがす" autocomplete="off">
+        <div id="rfClients" class="chips clients"></div>
+        <button type="button" class="btn" id="rfNewClient">＋ 新しいお客さんを登録</button>
+      </div>
+      <div class="card">
+        <div class="field-label">④ コース</div>
+        <div id="rfCourses" class="chips courses"></div>
+      </div>
+      <p id="rfSummary" class="summary"></p>
+      <button class="btn primary big" id="rfSave">この内容で予約する</button>
+    </section>
+
+    <!-- 予約の詳細 -->
+    <section id="view-resvdetail" class="page" hidden>
+      <button class="back" data-back>‹ 予約にもどる</button>
+      <div id="rdBody"></div>
+      <button class="btn primary big" id="rdDone">✓ 来院済みにする</button>
+      <div class="grid two">
+        <button class="btn" id="rdEdit">✏️ 日時・コースを変更</button>
+        <button class="btn danger" id="rdCancel">予約をキャンセル</button>
+      </div>
+      <button class="btn" id="rdRetry" hidden>📅 カレンダーにもう一度送る</button>
+      <button class="btn" id="rdUndo" hidden>↩ 予約中にもどす</button>
+    </section>
+
     <!-- 顧客一覧 -->
-    <section id="tab-clients" class="page">
+    <section id="tab-clients" class="page" hidden>
       <h1>お客さん</h1>
       <button class="btn primary big" id="newClient">＋ お客さんを登録</button>
       <input id="clientSearch" class="search" type="search" placeholder="名前・よみがなでさがす" autocomplete="off">
@@ -110,6 +163,30 @@
         <p id="lastBackup" class="muted small"></p>
       </div>
 
+      <form id="calForm" class="card">
+        <h3>カレンダー連携</h3>
+        <p class="small">予約を入れると、Googleカレンダー「昇起施術所 予約」に「田中K 90分」のような予定が入ります（1時間前に通知）。</p>
+        <label>GAS の URL（https://script.google.com/macros/s/…/exec）<input name="calUrl" inputmode="url" autocomplete="off" placeholder="https://script.google.com/macros/s/.../exec"></label>
+        <label>合言葉
+          <span class="date-row"><input name="calSecret" autocomplete="off" spellcheck="false"><button type="button" class="chip" id="makeSecret">作る</button><button type="button" class="chip" id="copySecret">コピー</button></span>
+        </label>
+        <div class="grid two">
+          <button class="btn primary">保存</button>
+          <button type="button" class="btn" id="calTest">接続テスト</button>
+        </div>
+        <p id="calStatus" class="muted small"></p>
+      </form>
+
+      <form id="hoursForm" class="card">
+        <h3>予約できる時間</h3>
+        <div class="grid two tight">
+          <label>はじまり<input type="time" name="openTime" step="900"></label>
+          <label>おわり（最後の開始時刻）<input type="time" name="closeTime" step="900"></label>
+        </div>
+        <label>きざみ（分）<select name="slotStep"><option>15</option><option>30</option><option>60</option></select></label>
+        <button class="btn primary">保存</button>
+      </form>
+
       <form id="settingsForm" class="card">
         <h3>ボタンの中身</h3>
         <p class="muted small">1行に1つずつ書きます。並び順がそのままボタンの順番になります。</p>
@@ -127,13 +204,14 @@
     </section>
 
     <nav class="tabbar">
-      <button data-tab="clients" class="active">👥<span>お客さん</span></button>
+      <button data-tab="resv" class="active">📅<span>予約</span></button>
+      <button data-tab="clients">👥<span>お客さん</span></button>
       <button data-tab="settings">⚙️<span>設定</span></button>
     </nav>
   </main>
 
   <div id="toast" class="toast" hidden><span id="toastText"></span></div>
 
-  <script type="module" src="js/app.js?v=2"></script>
+  <script type="module" src="js/app.js?v=3"></script>
 </body>
 </html>

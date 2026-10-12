@@ -30,6 +30,9 @@ export const saveClient = (c) => {
             : backend.add('clients', { ...data, createdAt: Date.now() });
 };
 export const deleteClient = (id) => backend.remove('clients', id);
+export const watchReservations = (cb) => backend.watch('reservations', cb);
+export const addReservation = (r) => backend.add('reservations', { ...r, createdAt: Date.now() });
+export const updateReservation = (id, data) => backend.update('reservations', id, { ...data, updatedAt: Date.now() });
 export async function getSettings() {
   let saved = null;
   try { saved = await backend.getMeta('settings'); } catch { /* 電波なし → 初期値で表示 */ }

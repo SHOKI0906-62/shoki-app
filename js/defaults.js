@@ -3,6 +3,10 @@ export const DEFAULT_SETTINGS = {
   ageGroups: ['10代', '20代', '30代', '40代', '50代', '60代', '70代〜'],
   genders: ['男性', '女性'],
   jobs: ['経営者', '役員', '会社員', '医師・士業', '自営業', '主婦・主夫', '学生', '無職・引退', 'その他'],
+  // 予約で選べる時間（開始・終了の時刻と、何分きざみか）
+  openTime: '09:00',
+  closeTime: '21:00',
+  slotStep: 30,
   courses: [
     { min: 60, price: 8000 },
     { min: 90, price: 11000 },

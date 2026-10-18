@@ -1,14 +1,12 @@
-/**
- * 昇起施術所 予約 → Google カレンダー連携（Google Apps Script）
- *
- * アプリから「予定を作って／変えて／消して」と頼まれたら、
- * カレンダー「昇起施術所 予約」に反映する小さなプログラム。
- * 予定の名前は「名字＋頭文字＋コース」（例：田中K 90分）だけ。健康の情報は受け取らない。
- *
- * ▼ 先生が書きかえるのは、下の2行だけ
- *   CALENDAR_ID … カレンダーの設定画面の「カレンダー ID」
- *   SECRET      … アプリの「設定 → カレンダー連携 → 合言葉を作る」で出た文字列
- */
+// 昇起施術所 予約 → Google カレンダー連携（Google Apps Script）
+//
+// アプリから「予定を作って／変えて／消して」と頼まれたら、
+// カレンダー「昇起施術所 予約」に反映する小さなプログラム。
+// 予定の名前は「名字＋頭文字＋コース」（例：田中K 90分）だけ。健康の情報は受け取らない。
+//
+// ▼ 先生が書きかえるのは、下の2行だけ
+//   CALENDAR_ID … カレンダーの設定画面の「カレンダー ID」
+//   SECRET      … アプリの「設定 → カレンダー連携 → 合言葉を作る」で出た文字列
 const CALENDAR_ID = 'ここにカレンダーIDを貼る';
 const SECRET = 'ここに合言葉を貼る';
 
@@ -59,7 +57,7 @@ function doPost(e) {
   } catch (err) {
     return reply({ ok: false, error: 'server-error' });
   } finally {
-    try { lock.releaseLock(); } catch (e2) { /* なにもしない */ }
+    try { lock.releaseLock(); } catch (e2) { }
   }
 }
 
@@ -71,7 +69,7 @@ function reply(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
 }
 
-/** 設置したあと、エディタでこれを1回「実行」すると、カレンダーへのアクセスを許可する画面が出る */
+// 設置したあと、エディタでこれを1回「実行」すると、カレンダーへのアクセスを許可する画面が出る
 function setupCheck() {
   const cal = CalendarApp.getCalendarById(CALENDAR_ID);
   Logger.log(cal ? 'OK：' + cal.getName() : 'カレンダーが見つかりません。CALENDAR_ID を確認してください');

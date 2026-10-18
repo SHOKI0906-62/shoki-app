@@ -227,3 +227,11 @@ textarea { resize: vertical; }
 .zoom-view { position: fixed; inset: 0; z-index: 50; background: #000; overflow: auto; -webkit-overflow-scrolling: touch; }
 .zoom-view img { width: 200%; max-width: none; display: block; }
 .zoom-view button { position: fixed; top: calc(10px + env(safe-area-inset-top)); right: 10px; width: 48px; height: 48px; border-radius: 50%; border: none; background: rgba(255,255,255,0.85); font-size: 22px; }
+.card.ref { border-left: 4px solid #8a6bd1; }
+.card.mine { border-left: 4px solid var(--accent); }
+.ref-quote { background: var(--bg); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; white-space: normal; font-size: 15px; }
+.stat-list { list-style: none; margin: 0; padding: 0; }
+.stat-list li { display: grid; grid-template-columns: 9em 1fr 3.5em; gap: 8px; align-items: center; padding: 4px 0; font-size: 15px; }
+.stat-list .bar { height: 10px; background: var(--line); border-radius: 5px; overflow: hidden; }
+.stat-list .bar i { display: block; height: 100%; background: var(--accent); }
+.stat-list b { text-align: right; }

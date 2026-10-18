@@ -5,6 +5,7 @@ import {
   watchReservations, addReservation, updateReservation,
   watchVisits, addVisit, updateVisit, deleteVisit, addPhoto, getPhoto, deletePhoto, updateClient,
   watchPointPages, addPointPage, updatePointPage, deletePointPage, watchPointNotes, savePointNote,
+  watchPointRefs, savePointRef,
   getSettings, saveSettings, exportAll,
 } from './store.js';
 import { eventTitle, toIso, isConfigured, callCalendar, makeSecret } from './calendar.js';
@@ -20,6 +21,8 @@ const state = {
   visits: [],
   pointPages: [],
   pointNotes: {},
+  pointRefs: {},        // Claude の参考メモ（経穴コード → {transcript, comment, indications}）
+  bulk: null,           // まとめて登録の途中
   ptCode: null,        // 詳細を見ている経穴
   ptMeridian: 'LU',    // 経穴タブで選んでいる経絡
   pc: null,            // 教科書ページの登録中 {id?, data?, photoId?, codes:Set, meridian}
@@ -101,6 +104,11 @@ initStore(async (user) => {
     state.pointNotes = Object.fromEntries(list.map((n) => [n.id, n.text || '']));
     renderPointTab();
   }));
+  state.unwatch.push(watchPointRefs((list) => {
+    state.pointRefs = Object.fromEntries(list.map((r) => [r.id, r]));
+    if (state.view === 'point') renderPointDetail();
+    renderPointTab();
+  }));
   renderPointTab();
   show('resv');
 }).catch((e) => {
@@ -162,7 +170,11 @@ document.querySelectorAll('[data-back]').forEach((b) => b.addEventListener('clic
   else if (v === 'visitform') show(state.visitFrom);
   else if (v === 'visitdetail') show('detail');
   else if (v === 'point') show('points');
-  else if (v === 'pagecodes') show(state.ptCode ? 'point' : 'points');
+  else if (v === 'pagecodes') {
+    if (state.bulk && !confirm('まとめて登録を途中でやめますか？\n（ここまで保存したページは残ります）')) return;
+    state.bulk = null;
+    show(state.ptCode ? 'point' : 'points');
+  }
   else show('clients');
 }));
 
@@ -963,7 +975,7 @@ function renderPointTab() {
         <div class="title">${esc(p.name)} <small class="muted">${esc(p.yomi)}</small></div>
         <div class="meta">${esc(specialOf(p.code, nameOf).join('・'))}</div>
       </div>
-      <span class="sync">${pageCount[p.code] ? '📖' : ''}${state.pointNotes[p.code] ? '📝' : ''}</span><span class="chev">›</span>
+      <span class="sync">${pageCount[p.code] ? '📖' : ''}${state.pointRefs[p.code] ? '💬' : ''}${state.pointNotes[p.code] ? '📝' : ''}</span><span class="chev">›</span>
     </li>`).join('') : '<li class="empty">見つかりません</li>');
 }
 $('ptSearch').addEventListener('input', renderPointTab);
@@ -1000,6 +1012,36 @@ async function renderPointDetail() {
         <dt>部位</dt><dd>${esc(locationOf(code) || '—')}</dd>
       </dl>
     </div>`;
+  // ②③ Claude の参考メモ
+  const ref = state.pointRefs[code];
+  const para = (t) => esc(t).replace(/\n/g, '<br>');
+  $('pdRefs').innerHTML = `
+    <div class="card ref">
+      <div class="field-label">② 書き込みの書き起こし＋Claudeの見解</div>
+      ${ref?.transcript ? `<div class="ref-quote">${para(ref.transcript)}</div>` : '<p class="muted small">まだありません（書き込みのあるページのスクショを Claude に送ると作れます）</p>'}
+      ${ref?.comment ? `<p>${para(ref.comment)}</p>` : ''}
+    </div>
+    <div class="card ref">
+      <div class="field-label">③ 一般的な主治（参考）</div>
+      ${ref?.indications ? `<p>${para(ref.indications)}</p>` : '<p class="muted small">まだありません</p>'}
+      <p class="muted small">②③は Claude の意見です。流派や先生によって使い方は違います。最終的な判断は④⑤（先生自身の臨床）を優先してください。</p>
+    </div>`;
+  // ⑤ 自分のカルテで、この経穴をどの主訴で使ったか
+  const byComplaint = {};
+  let usedCount = 0;
+  state.visits.forEach((v) => {
+    if (!(v.points || []).includes(code)) return;
+    usedCount++;
+    const names = (v.complaints || []).map((x) => x.name);
+    (names.length ? names : ['（主訴なし）']).forEach((n) => { byComplaint[n] = (byComplaint[n] || 0) + 1; });
+  });
+  const rows = Object.entries(byComplaint).sort((a, b) => b[1] - a[1]);
+  $('pdStats').innerHTML = usedCount
+    ? `<p class="small">これまで <b>${usedCount}回</b> 使いました</p><ul class="stat-list">${rows.map(([n, c]) =>
+      `<li><span>${esc(n)}</span><span class="bar"><i data-w="${Math.round((c / rows[0][1]) * 100)}"></i></span><b>${c}回</b></li>`).join('')}</ul>`
+    : '<p class="muted small">まだ使ったカルテはありません</p>';
+  // 棒の長さ（CSP で style 属性が使えないので、ここで設定する）
+  $('pdStats').querySelectorAll('[data-w]').forEach((el) => { el.style.width = `${el.dataset.w}%`; });
   // この経穴を使った最近のカルテ
   const used = state.visits.filter((v) => (v.points || []).includes(code))
     .sort((a, b) => b.date.localeCompare(a.date)).slice(0, 10);
@@ -1040,21 +1082,107 @@ $('pdNoteSave').addEventListener('click', async () => {
   toast('メモを保存しました');
 });
 
-// ----- 教科書ページの登録 -----
+// ----- 教科書ページの登録（1枚ずつ・まとめて） -----
+// 似ている画像を見つけるための「指紋」。上の時計の部分（5%）を除いて16×16の白黒にし、明るさで0/1を並べる
+function imageFingerprint(dataUrl) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const cv = document.createElement('canvas');
+      cv.width = 16; cv.height = 16;
+      const top = Math.round(img.height * 0.05);
+      const ctx = cv.getContext('2d');
+      ctx.drawImage(img, 0, top, img.width, img.height - top, 0, 0, 16, 16);
+      const d = ctx.getImageData(0, 0, 16, 16).data;
+      const g = [];
+      for (let i = 0; i < d.length; i += 4) g.push(d[i] * 0.3 + d[i + 1] * 0.59 + d[i + 2] * 0.11);
+      const avg = g.reduce((a, b) => a + b, 0) / g.length;
+      resolve(g.map((v) => (v > avg ? '1' : '0')).join(''));
+    };
+    img.onerror = () => resolve('');
+    img.src = dataUrl;
+  });
+}
+const fpClose = (a, b) => {
+  if (!a || !b || a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) diff++;
+  return diff <= 12;
+};
+
+// 前のページの続き（同じ経絡で、前に選んだ最後の番号の次から同じ数）を最初から選んでおく
+function nextCodes(prev) {
+  if (!prev.length) return [];
+  const last = prev.map((cd) => pointByCode[cd]).filter(Boolean).sort((a, b) => POINTS.indexOf(a) - POINTS.indexOf(b)).pop();
+  const list = POINTS.filter((p) => p.meridian === last.meridian);
+  const i = list.indexOf(last);
+  return list.slice(i + 1, i + 1 + prev.length).map((p) => p.code);
+}
+
+function startPage(data, fp, preset, queueInfo) {
+  const first = preset[0] ? pointByCode[preset[0]] : null;
+  state.pc = {
+    ...(queueInfo || {}),
+    id: null, data, fp,
+    codes: new Set(preset),
+    meridian: first ? first.meridian : (state.ptCode ? pointByCode[state.ptCode].meridian : state.ptMeridian),
+  };
+  renderPageCodes();
+  show('pagecodes');
+}
+
 $('pdPageInput').addEventListener('change', async (e) => {
   const file = e.target.files?.[0];
   e.target.value = '';
   if (!file) return;
   try {
     const data = await shrinkImage(file, 2000, 650000);
-    const cur = state.ptCode;
-    state.pc = { id: null, data, codes: new Set(cur ? [cur] : []), meridian: cur ? pointByCode[cur].meridian : 'LU' };
-    renderPageCodes();
-    show('pagecodes');
+    startPage(data, await imageFingerprint(data), state.ptCode ? [state.ptCode] : [], null);
   } catch {
     toast('画像を読み込めませんでした');
   }
 });
+
+// まとめて登録：何枚でも選べる。同じ画像（被り）は自動で外す
+$('ptBulkInput').addEventListener('change', async (e) => {
+  const files = [...(e.target.files || [])];
+  e.target.value = '';
+  if (!files.length) return;
+  toast(`${files.length}枚を読み込み中…`);
+  const known = state.pointPages.map((pg) => pg.fp).filter(Boolean);
+  const queue = [];
+  let dup = 0;
+  for (const f of files) {
+    try {
+      const data = await shrinkImage(f, 2000, 650000);
+      const fp = await imageFingerprint(data);
+      if ([...known, ...queue.map((q) => q.fp)].some((k) => fpClose(k, fp))) { dup++; continue; }
+      queue.push({ data, fp });
+    } catch { /* 読めない画像はとばす */ }
+  }
+  if (!queue.length) { toast(dup ? `全部 登録済みと同じ画像でした（${dup}枚）` : '画像を読み込めませんでした'); return; }
+  if (dup) toast(`被っている${dup}枚を外しました。残り${queue.length}枚`);
+  state.ptCode = null;
+  state.bulk = { queue, index: 0, saved: 0, prev: [] };
+  startBulkPage();
+});
+function startBulkPage() {
+  const b = state.bulk;
+  const item = b.queue[b.index];
+  startPage(item.data, item.fp, nextCodes(b.prev), { bulk: true });
+}
+function nextBulk(savedCodes) {
+  const b = state.bulk;
+  if (savedCodes) { b.saved++; b.prev = savedCodes; }
+  b.index++;
+  if (b.index < b.queue.length) { startBulkPage(); return; }
+  toast(`${b.saved}枚を登録しました`);
+  state.bulk = null;
+  state.pc = null;
+  renderPointTab();
+  show('points');
+}
+
 async function openPageEdit(id) {
   const pg = state.pointPages.find((x) => x.id === id);
   if (!pg) return;
@@ -1065,6 +1193,8 @@ async function openPageEdit(id) {
 }
 function renderPageCodes() {
   const pc = state.pc;
+  $('pcProgress').textContent = pc.bulk ? `（${state.bulk.index + 1}／${state.bulk.queue.length}枚目）` : '';
+  $('pcSkip').hidden = !pc.bulk;
   $('pcPreview').innerHTML = pc.data ? `<div class="photo"><img src="${pc.data}" alt="教科書のページ"></div>` : '';
   $('pcMeridians').innerHTML = meridianChips(pc.meridian);
   $('pcList').innerHTML = POINTS.filter((p) => p.meridian === pc.meridian).map((p) =>
@@ -1072,6 +1202,7 @@ function renderPageCodes() {
   const sel = [...pc.codes];
   $('pcCount').textContent = sel.length ? `${sel.length}穴：${sel.map(nameOf).join('、')}` : 'まだ選んでいません';
   $('pcSave').disabled = !sel.length;
+  $('pcSave').textContent = pc.bulk ? (state.bulk.index + 1 < state.bulk.queue.length ? '保存して次へ' : '保存して終わる') : '保存';
 }
 $('pcMeridians').addEventListener('click', (e) => {
   const b = e.target.closest('[data-mer]');
@@ -1084,6 +1215,7 @@ $('pcList').addEventListener('click', (e) => {
   if (s.has(b.dataset.pt)) s.delete(b.dataset.pt); else s.add(b.dataset.pt);
   renderPageCodes();
 });
+$('pcSkip').addEventListener('click', () => nextBulk(null));
 $('pcSave').addEventListener('click', async () => {
   const pc = state.pc;
   const codes = [...pc.codes];
@@ -1093,8 +1225,9 @@ $('pcSave').addEventListener('click', async () => {
       await updatePointPage(pc.id, { codes });
     } else {
       const photoId = await addPhoto({ kind: 'page', data: pc.data });
-      await addPointPage({ codes, photoId });
+      await addPointPage({ codes, photoId, fp: pc.fp || '' });
     }
+    if (pc.bulk) { nextBulk(codes); return; }
     toast(`${codes.length}穴に登録しました`);
     if (!state.ptCode || !codes.includes(state.ptCode)) state.ptCode = codes[0];
     openPoint(state.ptCode);
@@ -1112,6 +1245,33 @@ $('pdPages').addEventListener('click', async (e) => {
   await deletePhoto(pg.photoId);
   await deletePointPage(pg.id);
   toast('削除しました');
+});
+
+// ----- 経穴メモ（Claude 作成）の読み込み -----
+$('refImport').addEventListener('change', async (e) => {
+  const file = e.target.files?.[0];
+  e.target.value = '';
+  if (!file) return;
+  try {
+    const json = JSON.parse(await file.text());
+    if (json.kind !== 'point-refs' || typeof json.points !== 'object') throw new Error('format');
+    const entries = Object.entries(json.points).filter(([cd]) => pointByCode[cd]);
+    const clean = (v) => (typeof v === 'string' ? v.slice(0, 3000) : '');
+    if (!entries.length) throw new Error('empty');
+    if (!confirm(`${entries.length}穴分の経穴メモを読み込みますか？\n（同じ経穴の②③は新しい内容に置きかわります）`)) return;
+    for (const [cd, r] of entries) {
+      const old = state.pointRefs[cd] || {};
+      await savePointRef(cd, {
+        transcript: clean(r.transcript) || old.transcript || '',
+        comment: clean(r.comment) || old.comment || '',
+        indications: clean(r.indications) || old.indications || '',
+      });
+    }
+    $('refStatus').textContent = `✅ ${entries.length}穴分を読み込みました（${new Date().toLocaleDateString('ja-JP')}）`;
+    toast('読み込みました');
+  } catch {
+    $('refStatus').textContent = '❌ 読み込めませんでした。Claude が作ったファイルか確認してください';
+  }
 });
 
 // ---------- 設定 ----------

@@ -15,7 +15,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-180.png">
-  <link rel="stylesheet" href="css/style.css?v=6">
+  <link rel="stylesheet" href="css/style.css?v=7">
 </head>
 <body>
   <p id="loading" class="loading">読み込み中…</p>
@@ -94,6 +94,7 @@
       <h1>経穴</h1>
       <input id="ptSearch" class="search" type="search" placeholder="LI4・合谷・ごうこく でさがす" autocomplete="off">
       <div id="ptMeridians" class="chips meridians"></div>
+      <label class="btn photo-btn">📷 教科書のページをまとめて登録<input type="file" id="ptBulkInput" accept="image/*" multiple hidden></label>
       <ul id="ptList" class="list"></ul>
     </section>
 
@@ -102,13 +103,19 @@
       <button class="back" data-back>‹ 経穴にもどる</button>
       <div id="pdBody"></div>
       <div class="card">
-        <div class="field-label">教科書のページ</div>
+        <div class="field-label">① 教科書のページ</div>
         <div id="pdPages" class="photos big"></div>
         <label class="btn photo-btn">📷 教科書のページを登録<input type="file" id="pdPageInput" accept="image/*" hidden></label>
       </div>
-      <div class="card">
-        <label>自分のメモ（取穴のコツ・よく効いた症状など）<textarea id="pdNote" rows="4"></textarea></label>
+      <div id="pdRefs"></div>
+      <div class="card mine">
+        <div class="field-label">④ 自分の臨床メモ <span class="muted small">（先生のやり方・流派・教わった使い方）</span></div>
+        <textarea id="pdNote" rows="4" placeholder="例：ゴルフの腰痛にはまずここ。置鍼10分"></textarea>
         <button class="btn" id="pdNoteSave">メモを保存</button>
+      </div>
+      <div class="card mine">
+        <div class="field-label">⑤ 自分のカルテの実績 <span class="muted small">（この経穴を使った主訴）</span></div>
+        <div id="pdStats"></div>
       </div>
       <h2>この経穴を使った最近のカルテ</h2>
       <ul id="pdVisits" class="list"></ul>
@@ -117,13 +124,14 @@
     <!-- 教科書ページに載っている経穴を選ぶ -->
     <section id="view-pagecodes" class="page" hidden>
       <button class="back" data-back>‹ もどる</button>
-      <h1>このページに載っている経穴</h1>
+      <h1>このページに載っている経穴 <span id="pcProgress" class="muted small"></span></h1>
       <p class="muted small">タップで選びます（もう一度押すと外れます）。選んだ全部の経穴に、このページが表示されます。</p>
       <div id="pcPreview" class="photos big"></div>
       <div id="pcMeridians" class="chips meridians"></div>
       <div id="pcList" class="chips points"></div>
       <p id="pcCount" class="summary"></p>
       <button class="btn primary big" id="pcSave">保存</button>
+      <button class="btn" id="pcSkip" hidden>このページはとばす（経穴が載っていない）</button>
     </section>
 
     <!-- 顧客一覧 -->
@@ -266,6 +274,13 @@
         <p id="calStatus" class="muted small"></p>
       </form>
 
+      <div class="card">
+        <h3>経穴メモを読み込む</h3>
+        <p class="small">Claude が作った「書き込みの書き起こし・見解・一般的な主治」のファイル（.json）を読み込みます。同じ経穴のものは新しい内容に置きかわります（自分の臨床メモは変わりません）。</p>
+        <label class="btn photo-btn">📂 ファイルを選ぶ<input type="file" id="refImport" accept=".json,application/json" hidden></label>
+        <p id="refStatus" class="muted small"></p>
+      </div>
+
       <form id="hoursForm" class="card">
         <h3>予約できる時間</h3>
         <div class="grid two tight">
@@ -303,6 +318,6 @@
 
   <div id="toast" class="toast" hidden><span id="toastText"></span></div>
 
-  <script type="module" src="js/app.js?v=6"></script>
+  <script type="module" src="js/app.js?v=7"></script>
 </body>
 </html>

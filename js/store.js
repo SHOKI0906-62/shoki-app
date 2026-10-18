@@ -11,7 +11,7 @@ import { firebaseConfig } from './firebase-config.js';
 import { DEFAULT_SETTINGS } from './defaults.js';
 
 const FB = 'https://www.gstatic.com/firebasejs/10.14.1/';
-const COLLECTIONS = ['clients', 'reservations', 'visits', 'photos', 'pointPages', 'pointNotes'];
+const COLLECTIONS = ['clients', 'reservations', 'visits', 'photos', 'pointPages', 'pointNotes', 'pointRefs'];
 export const isLocalMode = !firebaseConfig.apiKey;
 
 let backend;
@@ -49,6 +49,9 @@ export const updatePointPage = (id, data) => backend.update('pointPages', id, da
 export const deletePointPage = (id) => backend.remove('pointPages', id);
 export const watchPointNotes = (cb) => backend.watch('pointNotes', cb);
 export const savePointNote = (code, text) => backend.set('pointNotes', code, { text, updatedAt: Date.now() });
+// Claude が作った参考メモ（書き込みの書き起こし・見解・一般的な主治）。ファイルから読み込む
+export const watchPointRefs = (cb) => backend.watch('pointRefs', cb);
+export const savePointRef = (code, data) => backend.set('pointRefs', code, { ...data, updatedAt: Date.now() });
 export async function getSettings() {
   let saved = null;
   try { saved = await backend.getMeta('settings'); } catch { /* 電波なし → 初期値で表示 */ }

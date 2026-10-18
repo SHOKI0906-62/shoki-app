@@ -217,3 +217,13 @@ textarea { resize: vertical; }
 .photo img { width: 100%; display: block; }
 .photo button { position: absolute; top: 4px; right: 4px; width: 36px; height: 36px; border-radius: 50%; border: none; background: rgba(0, 0, 0, 0.6); color: #fff; font-size: 16px; }
 .photo-btn { text-align: center; line-height: 32px; color: var(--text); font-size: 17px; }
+
+/* 経穴 */
+.photo.page { flex-direction: column; }
+.page-tools { display: flex; gap: 8px; justify-content: flex-end; width: 100%; padding: 6px; }
+.info dd .tag { margin: 0 4px 4px 0; }
+.page-tools .chip { position: static; width: auto; height: auto; border-radius: 999px; background: var(--bg); color: var(--text); font-size: 14px; }
+/* 教科書ページをタップで大きく */
+.zoom-view { position: fixed; inset: 0; z-index: 50; background: #000; overflow: auto; -webkit-overflow-scrolling: touch; }
+.zoom-view img { width: 200%; max-width: none; display: block; }
+.zoom-view button { position: fixed; top: calc(10px + env(safe-area-inset-top)); right: 10px; width: 48px; height: 48px; border-radius: 50%; border: none; background: rgba(255,255,255,0.85); font-size: 22px; }

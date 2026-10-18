@@ -60,7 +60,7 @@
 
 ## ファイル
 - `index.html` 画面の骨組み（CSP＝読み込んでよい場所の制限つき） / `css/style.css` 見た目（ダークモード対応）
-- `js/app.js` 画面の動き / `js/store.js` 保存係 / `js/calendar.js` カレンダー係（GAS に頼む） / `js/points.js` WHO標準経穴361穴 / `gas/Code.gs` GAS に貼るプログラム / `js/defaults.js` ボタンの初期値（年代・性別・職業・コース・紹介元・頭文字）
+- `js/app.js` 画面の動き / `js/store.js` 保存係 / `js/calendar.js` カレンダー係（GAS に頼む） / `js/points.js` WHO標準経穴361穴＋奇穴32穴 / `js/locations.js` 経穴の部位・要穴 / `gas/Code.gs` GAS に貼るプログラム / `js/defaults.js` ボタンの初期値（年代・性別・職業・コース・紹介元・頭文字）
 - `js/firebase-config.js` Firebaseの設定値 / `firestore.rules` データの鍵
 - `sw.js` オフライン用（画面のファイルだけ控える。お客さんのデータは Firestore の控えのみ） / `manifest.webmanifest`・`icons/` ホーム画面用（アイコンは紺地に白の「昇」）
 - `SETUP.md` 本人の準備手順 / `.gitignore` バックアップファイルをリポジトリに入れないための設定
@@ -125,6 +125,15 @@
   - カルテ写真：長辺1600px・JPEG（約300KB以下）に縮小して `users/{uid}/photos/{id}` `{clientId, date, data}` に保存。visit には photoIds[]。見るときだけ読み込む
   - 相談用にコピー：名前を外し「年代・性別・職業・身長体重＋今回＋過去5回の主訴・経穴・メモ」をクリップボードへ
   - visit データの形：`{date, clientId, reservationId, course, complaints:[{name, side:'L'|'R'|'LR'|''}], complaintText, points:['LI4',…], memo, payment, amount, freeInvite, photoIds[]}`
+- [ ] 経穴タブ（2026-10-18 作成・お試しモードで動作確認済み。実機テスト待ち）
+  - 下のタブ「📍 経穴」：検索（LI4／合谷／ごうこく）・経絡別一覧（LU〜CV＋EX）。教科書ページ登録済みは📖、メモありは📝
+  - 経穴の詳細：コード・経絡・要穴タグ・部位（文章）・教科書のページ（タップで拡大）・自分のメモ・この経穴を使った最近のカルテ
+  - 部位の文章：`js/locations.js`。WHO標準部位をもとに自分の言葉で書いたもの（教科書の文章は公開リポジトリに入れない＝著作権）
+  - 要穴：教科書の要穴表（p240-241）と一致を確認。原穴・郄穴・絡穴・募穴・背部兪穴・五兪穴（五行つき）・八会穴・八脈交会穴・下合穴・四総穴
+  - 奇穴32穴を EX1〜EX32（アプリ独自の番号、教科書の番号順）で追加。取り方は短く自分の言葉で
+  - 教科書のページ：本人がアプリでスクショを登録（長辺2000px・約650KB以下に縮小）。画像は `photos`（kind:'page'）、どの経穴が載っているかは `pointPages/{id}` `{codes[], photoId}`。1枚を複数の経穴に紐づけられる
+  - 自分のメモ：`pointNotes/{経穴コード}` `{text, updatedAt}`
+  - 2026-10-18 本人から教科書スクショ（督脈・任脈・心包経・肝経の一部・要穴表・奇穴など）を受け取り、よみ・要穴を確認。スクショはリポジトリには入れていない
 - [ ] ステップ4：売上・集計
   - 月別売上、コース別、紹介元別、来院回数、リピート率、無料招待→有料リピート人数
   - 確定申告用のCSV書き出しは**作らない**（2026-10-10決定）

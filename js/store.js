@@ -11,7 +11,7 @@ import { firebaseConfig } from './firebase-config.js';
 import { DEFAULT_SETTINGS } from './defaults.js';
 
 const FB = 'https://www.gstatic.com/firebasejs/10.14.1/';
-const COLLECTIONS = ['clients', 'reservations', 'visits', 'photos'];
+const COLLECTIONS = ['clients', 'reservations', 'visits', 'photos', 'pointPages', 'pointNotes'];
 export const isLocalMode = !firebaseConfig.apiKey;
 
 let backend;
@@ -42,6 +42,13 @@ export const addPhoto = (p) => backend.add('photos', { ...p, createdAt: Date.now
 export const getPhoto = (id) => backend.get('photos', id);
 export const deletePhoto = (id) => backend.remove('photos', id);
 export const updateClient = (id, data) => backend.update('clients', id, data);
+// 経穴：教科書ページ（画像は photos に、どの経穴が載っているかは pointPages に）と自分のメモ
+export const watchPointPages = (cb) => backend.watch('pointPages', cb);
+export const addPointPage = (p) => backend.add('pointPages', { ...p, createdAt: Date.now() });
+export const updatePointPage = (id, data) => backend.update('pointPages', id, data);
+export const deletePointPage = (id) => backend.remove('pointPages', id);
+export const watchPointNotes = (cb) => backend.watch('pointNotes', cb);
+export const savePointNote = (code, text) => backend.set('pointNotes', code, { text, updatedAt: Date.now() });
 export async function getSettings() {
   let saved = null;
   try { saved = await backend.getMeta('settings'); } catch { /* 電波なし → 初期値で表示 */ }
@@ -84,6 +91,7 @@ function localBackend() {
     async update(name, id, data) { col(name)[id] = { ...col(name)[id], ...data }; save(); },
     async remove(name, id) { delete col(name)[id]; save(); },
     async get(name, id) { const d = col(name)[id]; return d ? { id, ...d } : null; },
+    async set(name, id, data) { col(name)[id] = data; save(); },
     async getMeta(key) { return col('meta')[key]; },
     async setMeta(key, val) { col('meta')[key] = val; save(); },
     async exportAll() { return db; },
@@ -135,6 +143,7 @@ async function firebaseBackend() {
     },
     async update(name, id, data) { fs.updateDoc(fs.doc(colRef(name), id), data); },
     async remove(name, id) { fs.deleteDoc(fs.doc(colRef(name), id)); },
+    async set(name, id, data) { fs.setDoc(fs.doc(colRef(name), id), data); },
     async get(name, id) {
       const s = await fs.getDoc(fs.doc(colRef(name), id));
       return s.exists() ? { id: s.id, ...s.data() } : null;

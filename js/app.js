@@ -4,10 +4,12 @@ import {
   watchClients, saveClient, deleteClient,
   watchReservations, addReservation, updateReservation,
   watchVisits, addVisit, updateVisit, deleteVisit, addPhoto, getPhoto, deletePhoto, updateClient,
+  watchPointPages, addPointPage, updatePointPage, deletePointPage, watchPointNotes, savePointNote,
   getSettings, saveSettings, exportAll,
 } from './store.js';
 import { eventTitle, toIso, isConfigured, callCalendar, makeSecret } from './calendar.js';
 import { POINTS, MERIDIANS, pointByCode } from './points.js';
+import { locationOf, specialOf } from './locations.js';
 import { REFERRAL_TYPES, INITIALS } from './defaults.js';
 
 const $ = (id) => document.getElementById(id);
@@ -16,6 +18,11 @@ const state = {
   settings: null,
   resv: [],
   visits: [],
+  pointPages: [],
+  pointNotes: {},
+  ptCode: null,        // 詳細を見ている経穴
+  ptMeridian: 'LU',    // 経穴タブで選んでいる経絡
+  pc: null,            // 教科書ページの登録中 {id?, data?, photoId?, codes:Set, meridian}
   vf: {},              // カルテ入力中の値
   visitId: null,       // 詳細を見ている来院記録
   visitFrom: 'detail', // カルテ入力を開いた画面（もどる先）
@@ -86,6 +93,15 @@ initStore(async (user) => {
     if (state.view === 'visitdetail') renderVisitDetail();
     if (state.view === 'resvdetail') renderResvDetail();
   }));
+  state.unwatch.push(watchPointPages((list) => {
+    state.pointPages = list;
+    if (state.view === 'point') renderPointDetail();
+  }));
+  state.unwatch.push(watchPointNotes((list) => {
+    state.pointNotes = Object.fromEntries(list.map((n) => [n.id, n.text || '']));
+    renderPointTab();
+  }));
+  renderPointTab();
   show('resv');
 }).catch((e) => {
   $('loading').textContent = '読み込みに失敗しました。電波を確認して、もう一度開いてください。';
@@ -124,6 +140,7 @@ const VIEWS = {
   resv: ['tab-resv', 'resv'], resvform: ['view-resvform', 'resv'], resvdetail: ['view-resvdetail', 'resv'],
   clients: ['tab-clients', 'clients'], detail: ['view-detail', 'clients'], form: ['view-form', 'clients'],
   settings: ['tab-settings', 'settings'],
+  points: ['tab-points', 'points'], point: ['view-point', 'points'], pagecodes: ['view-pagecodes', 'points'],
   visitform: ['view-visitform', 'clients'], visitdetail: ['view-visitdetail', 'clients'],
 };
 function show(view) {
@@ -144,6 +161,8 @@ document.querySelectorAll('[data-back]').forEach((b) => b.addEventListener('clic
   else if (v === 'resvdetail') show('resv');
   else if (v === 'visitform') show(state.visitFrom);
   else if (v === 'visitdetail') show('detail');
+  else if (v === 'point') show('points');
+  else if (v === 'pagecodes') show(state.ptCode ? 'point' : 'points');
   else show('clients');
 }));
 
@@ -765,7 +784,7 @@ $('vfPay').addEventListener('click', (e) => {
 });
 
 // ----- カルテ写真（小さくしてから保存） -----
-function shrinkImage(file) {
+function shrinkImage(file, max = 1600, limit = 400000) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = reject;
@@ -773,7 +792,6 @@ function shrinkImage(file) {
       const img = new Image();
       img.onerror = reject;
       img.onload = () => {
-        const max = 1600;
         const r = Math.min(1, max / Math.max(img.width, img.height));
         const cv = document.createElement('canvas');
         cv.width = Math.round(img.width * r);
@@ -781,7 +799,7 @@ function shrinkImage(file) {
         cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
         let q = 0.75;
         let data = cv.toDataURL('image/jpeg', q);
-        while (data.length > 400000 && q > 0.35) { q -= 0.1; data = cv.toDataURL('image/jpeg', q); }
+        while (data.length > limit && q > 0.35) { q -= 0.1; data = cv.toDataURL('image/jpeg', q); }
         resolve(data);
       };
       img.src = reader.result;
@@ -923,6 +941,177 @@ $('vdCopy').addEventListener('click', async () => {
   } catch {
     prompt('コピーできなかったので、下の文を長押しでコピーしてください', text);
   }
+});
+
+// ---------- 経穴 ----------
+const meridianName = (m) => MERIDIANS.find((x) => x.code === m)?.name || '';
+const nameOf = (cd) => pointByCode[cd]?.name || '';
+const searchPoints = (q) => POINTS.filter((p) => norm(p.code).startsWith(q) || norm(p.name).includes(q) || norm(p.yomi).includes(q));
+const meridianChips = (cur) => MERIDIANS.map((m) =>
+  `<button type="button" class="chip small${cur === m.code ? ' on' : ''}" data-mer="${m.code}" title="${m.name}">${m.code}</button>`).join('');
+
+function renderPointTab() {
+  const q = norm($('ptSearch').value);
+  $('ptMeridians').innerHTML = meridianChips(q ? '' : state.ptMeridian);
+  const list = q ? searchPoints(q) : POINTS.filter((p) => p.meridian === state.ptMeridian);
+  const pageCount = {};
+  state.pointPages.forEach((pg) => (pg.codes || []).forEach((cd) => { pageCount[cd] = (pageCount[cd] || 0) + 1; }));
+  $('ptList').innerHTML = (q ? '' : `<li class="empty">${esc(meridianName(state.ptMeridian))}　${list.length}穴</li>`) + (list.length ? list.map((p) => `
+    <li data-pt="${p.code}">
+      <div class="time">${p.code}</div>
+      <div class="main">
+        <div class="title">${esc(p.name)} <small class="muted">${esc(p.yomi)}</small></div>
+        <div class="meta">${esc(specialOf(p.code, nameOf).join('・'))}</div>
+      </div>
+      <span class="sync">${pageCount[p.code] ? '📖' : ''}${state.pointNotes[p.code] ? '📝' : ''}</span><span class="chev">›</span>
+    </li>`).join('') : '<li class="empty">見つかりません</li>');
+}
+$('ptSearch').addEventListener('input', renderPointTab);
+$('ptMeridians').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-mer]');
+  if (!b) return;
+  state.ptMeridian = b.dataset.mer;
+  $('ptSearch').value = '';
+  renderPointTab();
+});
+$('ptList').addEventListener('click', (e) => {
+  const li = e.target.closest('[data-pt]');
+  if (li) openPoint(li.dataset.pt);
+});
+
+function openPoint(code) {
+  state.ptCode = code;
+  $('pdNote').value = state.pointNotes[code] || '';
+  renderPointDetail();
+  show('point');
+}
+async function renderPointDetail() {
+  const code = state.ptCode;
+  const p = pointByCode[code];
+  if (!p) return;
+  const sp = specialOf(code, nameOf);
+  $('pdBody').innerHTML = `
+    <h1>${esc(p.name)} <small class="muted">${esc(p.yomi)}</small></h1>
+    <div class="card">
+      <dl class="info">
+        <dt>コード</dt><dd>${code}${p.meridian === 'EX' ? '（アプリの番号）' : ''}</dd>
+        <dt>経絡</dt><dd>${esc(meridianName(p.meridian))}</dd>
+        ${sp.length ? `<dt>要穴</dt><dd>${sp.map((x) => `<span class="tag">${esc(x)}</span>`).join(' ')}</dd>` : ''}
+        <dt>部位</dt><dd>${esc(locationOf(code) || '—')}</dd>
+      </dl>
+    </div>`;
+  // この経穴を使った最近のカルテ
+  const used = state.visits.filter((v) => (v.points || []).includes(code))
+    .sort((a, b) => b.date.localeCompare(a.date)).slice(0, 10);
+  $('pdVisits').innerHTML = used.length ? used.map((v) => {
+    const c = clientOf(v.clientId);
+    return `<li data-vid="${esc(v.id)}"><div class="main"><div class="title">${esc(dayLabel(v.date))}　${esc(c ? fullName(c) : '')}</div>
+      <div class="meta">${esc(complaintText(v.complaints) || v.complaintText || '')}</div></div><span class="chev">›</span></li>`;
+  }).join('') : '<li class="empty">まだ使ったカルテはありません</li>';
+  // 教科書のページ
+  const pages = state.pointPages.filter((pg) => (pg.codes || []).includes(code));
+  if (!pages.length) { $('pdPages').innerHTML = '<p class="muted small">まだ登録されていません</p>'; return; }
+  const imgs = await Promise.all(pages.map(async (pg) => ({ pg, data: (await getPhoto(pg.photoId).catch(() => null))?.data })));
+  if (state.ptCode !== code) return;
+  $('pdPages').innerHTML = imgs.map(({ pg, data }) => `
+    <div class="photo page">${data ? `<img src="${data}" alt="教科書のページ">` : '<span class="muted small">読み込み中…</span>'}
+      <div class="page-tools">
+        <button type="button" class="chip small" data-pgedit="${esc(pg.id)}">載っている経穴を変更</button>
+        <button type="button" class="chip small" data-pgdel="${esc(pg.id)}">削除</button>
+      </div>
+    </div>`).join('');
+}
+// 教科書ページをタップすると大きく表示（2本指で拡大・スクロールもできる）
+document.addEventListener('click', (e) => {
+  const img = e.target.closest('#pdPages img, #vdPhotos img');
+  if (!img) return;
+  const v = document.createElement('div');
+  v.className = 'zoom-view';
+  v.innerHTML = `<img src="${img.src}" alt="拡大"><button type="button" aria-label="閉じる">✕</button>`;
+  v.querySelector('button').onclick = () => v.remove();
+  document.body.appendChild(v);
+});
+$('pdVisits').addEventListener('click', (e) => {
+  const li = e.target.closest('[data-vid]');
+  if (li) openVisitDetail(li.dataset.vid);
+});
+$('pdNoteSave').addEventListener('click', async () => {
+  await savePointNote(state.ptCode, $('pdNote').value.trim());
+  toast('メモを保存しました');
+});
+
+// ----- 教科書ページの登録 -----
+$('pdPageInput').addEventListener('change', async (e) => {
+  const file = e.target.files?.[0];
+  e.target.value = '';
+  if (!file) return;
+  try {
+    const data = await shrinkImage(file, 2000, 650000);
+    const cur = state.ptCode;
+    state.pc = { id: null, data, codes: new Set(cur ? [cur] : []), meridian: cur ? pointByCode[cur].meridian : 'LU' };
+    renderPageCodes();
+    show('pagecodes');
+  } catch {
+    toast('画像を読み込めませんでした');
+  }
+});
+async function openPageEdit(id) {
+  const pg = state.pointPages.find((x) => x.id === id);
+  if (!pg) return;
+  const ph = await getPhoto(pg.photoId).catch(() => null);
+  state.pc = { id, data: ph?.data || '', codes: new Set(pg.codes || []), meridian: pointByCode[state.ptCode]?.meridian || 'LU' };
+  renderPageCodes();
+  show('pagecodes');
+}
+function renderPageCodes() {
+  const pc = state.pc;
+  $('pcPreview').innerHTML = pc.data ? `<div class="photo"><img src="${pc.data}" alt="教科書のページ"></div>` : '';
+  $('pcMeridians').innerHTML = meridianChips(pc.meridian);
+  $('pcList').innerHTML = POINTS.filter((p) => p.meridian === pc.meridian).map((p) =>
+    `<button type="button" class="chip${pc.codes.has(p.code) ? ' on' : ''}" data-pt="${p.code}"><b>${p.code}</b> ${esc(p.name)}</button>`).join('');
+  const sel = [...pc.codes];
+  $('pcCount').textContent = sel.length ? `${sel.length}穴：${sel.map(nameOf).join('、')}` : 'まだ選んでいません';
+  $('pcSave').disabled = !sel.length;
+}
+$('pcMeridians').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-mer]');
+  if (b) { state.pc.meridian = b.dataset.mer; renderPageCodes(); }
+});
+$('pcList').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-pt]');
+  if (!b) return;
+  const s = state.pc.codes;
+  if (s.has(b.dataset.pt)) s.delete(b.dataset.pt); else s.add(b.dataset.pt);
+  renderPageCodes();
+});
+$('pcSave').addEventListener('click', async () => {
+  const pc = state.pc;
+  const codes = [...pc.codes];
+  $('pcSave').disabled = true;
+  try {
+    if (pc.id) {
+      await updatePointPage(pc.id, { codes });
+    } else {
+      const photoId = await addPhoto({ kind: 'page', data: pc.data });
+      await addPointPage({ codes, photoId });
+    }
+    toast(`${codes.length}穴に登録しました`);
+    if (!state.ptCode || !codes.includes(state.ptCode)) state.ptCode = codes[0];
+    openPoint(state.ptCode);
+  } finally {
+    $('pcSave').disabled = false;
+  }
+});
+$('pdPages').addEventListener('click', async (e) => {
+  const ed = e.target.closest('[data-pgedit]');
+  const del = e.target.closest('[data-pgdel]');
+  if (ed) { openPageEdit(ed.dataset.pgedit); return; }
+  if (!del) return;
+  const pg = state.pointPages.find((x) => x.id === del.dataset.pgdel);
+  if (!pg || !confirm(`このページを削除しますか？\n（載っている${(pg.codes || []).length}穴すべてから消えます）`)) return;
+  await deletePhoto(pg.photoId);
+  await deletePointPage(pg.id);
+  toast('削除しました');
 });
 
 // ---------- 設定 ----------

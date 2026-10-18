@@ -15,7 +15,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-180.png">
-  <link rel="stylesheet" href="css/style.css?v=4">
+  <link rel="stylesheet" href="css/style.css?v=6">
 </head>
 <body>
   <p id="loading" class="loading">読み込み中…</p>
@@ -87,6 +87,43 @@
       </div>
       <button class="btn" id="rdRetry" hidden>📅 カレンダーにもう一度送る</button>
       <button class="btn" id="rdUndo" hidden>↩ 予約中にもどす</button>
+    </section>
+
+    <!-- 経穴 -->
+    <section id="tab-points" class="page" hidden>
+      <h1>経穴</h1>
+      <input id="ptSearch" class="search" type="search" placeholder="LI4・合谷・ごうこく でさがす" autocomplete="off">
+      <div id="ptMeridians" class="chips meridians"></div>
+      <ul id="ptList" class="list"></ul>
+    </section>
+
+    <!-- 経穴の詳細 -->
+    <section id="view-point" class="page" hidden>
+      <button class="back" data-back>‹ 経穴にもどる</button>
+      <div id="pdBody"></div>
+      <div class="card">
+        <div class="field-label">教科書のページ</div>
+        <div id="pdPages" class="photos big"></div>
+        <label class="btn photo-btn">📷 教科書のページを登録<input type="file" id="pdPageInput" accept="image/*" hidden></label>
+      </div>
+      <div class="card">
+        <label>自分のメモ（取穴のコツ・よく効いた症状など）<textarea id="pdNote" rows="4"></textarea></label>
+        <button class="btn" id="pdNoteSave">メモを保存</button>
+      </div>
+      <h2>この経穴を使った最近のカルテ</h2>
+      <ul id="pdVisits" class="list"></ul>
+    </section>
+
+    <!-- 教科書ページに載っている経穴を選ぶ -->
+    <section id="view-pagecodes" class="page" hidden>
+      <button class="back" data-back>‹ もどる</button>
+      <h1>このページに載っている経穴</h1>
+      <p class="muted small">タップで選びます（もう一度押すと外れます）。選んだ全部の経穴に、このページが表示されます。</p>
+      <div id="pcPreview" class="photos big"></div>
+      <div id="pcMeridians" class="chips meridians"></div>
+      <div id="pcList" class="chips points"></div>
+      <p id="pcCount" class="summary"></p>
+      <button class="btn primary big" id="pcSave">保存</button>
     </section>
 
     <!-- 顧客一覧 -->
@@ -259,12 +296,13 @@
     <nav class="tabbar">
       <button data-tab="resv" class="active">📅<span>予約</span></button>
       <button data-tab="clients">👥<span>お客さん</span></button>
+      <button data-tab="points">📍<span>経穴</span></button>
       <button data-tab="settings">⚙️<span>設定</span></button>
     </nav>
   </main>
 
   <div id="toast" class="toast" hidden><span id="toastText"></span></div>
 
-  <script type="module" src="js/app.js?v=4"></script>
+  <script type="module" src="js/app.js?v=6"></script>
 </body>
 </html>

@@ -60,7 +60,7 @@
 
 ## ファイル
 - `index.html` 画面の骨組み（CSP＝読み込んでよい場所の制限つき） / `css/style.css` 見た目（ダークモード対応）
-- `js/app.js` 画面の動き / `js/store.js` 保存係 / `js/calendar.js` カレンダー係（GAS に頼む） / `gas/Code.gs` GAS に貼るプログラム / `js/defaults.js` ボタンの初期値（年代・性別・職業・コース・紹介元・頭文字）
+- `js/app.js` 画面の動き / `js/store.js` 保存係 / `js/calendar.js` カレンダー係（GAS に頼む） / `js/points.js` WHO標準経穴361穴 / `gas/Code.gs` GAS に貼るプログラム / `js/defaults.js` ボタンの初期値（年代・性別・職業・コース・紹介元・頭文字）
 - `js/firebase-config.js` Firebaseの設定値 / `firestore.rules` データの鍵
 - `sw.js` オフライン用（画面のファイルだけ控える。お客さんのデータは Firestore の控えのみ） / `manifest.webmanifest`・`icons/` ホーム画面用（アイコンは紺地に白の「昇」）
 - `SETUP.md` 本人の準備手順 / `.gitignore` バックアップファイルをリポジトリに入れないための設定
@@ -71,7 +71,8 @@
   - 住所・生年月日・電話番号・会社名は**入れない**
   - initial（下の名前の頭文字・ローマ字大文字1文字）はカレンダー用。A〜Zのボタンで選ぶ
 - `users/{uid}/reservations/{id}` 予約：`{date, start:'HH:MM', clientId, course:60|90|120, status:'booked'|'done'|'cancelled', calEventId, calSync:'ok'|'pending'|'error'}`
-- `users/{uid}/visits/{id}` 来院記録（カルテ）：`{date, clientId, reservationId?, course, complaint, areas[], points[], memo, payment:'現金'|'無料招待', amount, freeInvite:boolean}`
+- `users/{uid}/visits/{id}` 来院記録（カルテ）：`{date, clientId, reservationId?, course, complaints[{name,side}], complaintText, points[], memo, payment:'現金'|'無料招待', amount, freeInvite:boolean, photoIds[]}`
+- `users/{uid}/photos/{id}` カルテ写真：`{clientId, date, data(JPEGのdataURL)}`
   - 支払い方法は **現金・無料招待の2つ**（2026-10-10決定）
   - 招待カード「60分無料」は payment:'無料招待'・amount:0・freeInvite:true
 - `users/{uid}/meta/settings` コース・料金・職業や部位のボタン一覧・GAS の URL と合言葉
@@ -115,11 +116,15 @@
   - 設定：カレンダー連携（GAS の URL・合言葉を作る／コピー・接続テスト）、予約できる時間（はじまり・おわり・きざみ）
   - CSP に script.google.com と script.googleusercontent.com を追加
   - 予約データの形：`{date, start, clientId, course, status, calEventId, calSync, pendingAt, createdAt, updatedAt}`
-- [ ] ステップ3：来院記録（カルテ）
-  - 予約の「来院済み」→ カルテ入力画面 → 保存で売上と来院履歴に入る
-  - 施術部位はボタン、経穴は WHO 標準（361穴）から検索／よく使う順／経絡別に選ぶ
-  - 支払い方法・金額はコースから自動（無料招待ボタンで0円）
-  - お客さんごとの来院履歴一覧
+- [ ] ステップ3：来院記録（カルテ）（2026-10-18 作成・お試しモードで動作確認済み。実機テスト待ち）
+  - 予約の詳細「✓ 来院済み → カルテを書く」→ カルテ入力 → 保存で予約は done、初回来院日が空なら自動で入る。カルテがある予約は「📋 カルテを見る」
+  - お客さんの詳細に来院履歴（新しい順）と「＋ 来院記録を追加」（予約なしの来院用）
+  - **施術部位は作らない**（2026-10-18 本人決定）。主訴はボタン（設定で編集可）＋主訴ごとに **L・R**（両方押すと L・R）＋主訴のメモ
+  - 経穴：`js/points.js`（WHO 標準361穴：コード・漢字・よみ）。検索（LI4／合谷／ごうこく）・経絡別（LU〜CV）・よく使う順（過去のカルテで多い順）
+  - 支払い：現金（コースの金額が自動・変更可）／無料招待（0円）。紹介元が招待カードで初回なら最初から「無料招待」
+  - カルテ写真：長辺1600px・JPEG（約300KB以下）に縮小して `users/{uid}/photos/{id}` `{clientId, date, data}` に保存。visit には photoIds[]。見るときだけ読み込む
+  - 相談用にコピー：名前を外し「年代・性別・職業・身長体重＋今回＋過去5回の主訴・経穴・メモ」をクリップボードへ
+  - visit データの形：`{date, clientId, reservationId, course, complaints:[{name, side:'L'|'R'|'LR'|''}], complaintText, points:['LI4',…], memo, payment, amount, freeInvite, photoIds[]}`
 - [ ] ステップ4：売上・集計
   - 月別売上、コース別、紹介元別、来院回数、リピート率、無料招待→有料リピート人数
   - 確定申告用のCSV書き出しは**作らない**（2026-10-10決定）

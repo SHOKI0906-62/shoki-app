@@ -1,7 +1,7 @@
 // 電波がなくてもアプリが開けるようにする係。
 // まずネットから最新を取りに行き、だめなら保存しておいたものを出す。
 // ※お客さんのデータはここでは保存しない（画面のファイルと Firebase のプログラムだけ）
-const CACHE = 'shoki-v3';
+const CACHE = 'shoki-v4';
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (e) => e.waitUntil(
   caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))

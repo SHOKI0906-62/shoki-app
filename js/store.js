@@ -11,7 +11,7 @@ import { firebaseConfig } from './firebase-config.js';
 import { DEFAULT_SETTINGS } from './defaults.js';
 
 const FB = 'https://www.gstatic.com/firebasejs/10.14.1/';
-const COLLECTIONS = ['clients', 'reservations', 'visits'];
+const COLLECTIONS = ['clients', 'reservations', 'visits', 'photos'];
 export const isLocalMode = !firebaseConfig.apiKey;
 
 let backend;
@@ -33,6 +33,15 @@ export const deleteClient = (id) => backend.remove('clients', id);
 export const watchReservations = (cb) => backend.watch('reservations', cb);
 export const addReservation = (r) => backend.add('reservations', { ...r, createdAt: Date.now() });
 export const updateReservation = (id, data) => backend.update('reservations', id, { ...data, updatedAt: Date.now() });
+export const watchVisits = (cb) => backend.watch('visits', cb);
+export const addVisit = (v) => backend.add('visits', { ...v, createdAt: Date.now() });
+export const updateVisit = (id, data) => backend.update('visits', id, { ...data, updatedAt: Date.now() });
+export const deleteVisit = (id) => backend.remove('visits', id);
+// カルテ写真は重いので、来院記録とは別に保存し、見るときだけ読み込む
+export const addPhoto = (p) => backend.add('photos', { ...p, createdAt: Date.now() });
+export const getPhoto = (id) => backend.get('photos', id);
+export const deletePhoto = (id) => backend.remove('photos', id);
+export const updateClient = (id, data) => backend.update('clients', id, data);
 export async function getSettings() {
   let saved = null;
   try { saved = await backend.getMeta('settings'); } catch { /* 電波なし → 初期値で表示 */ }
@@ -74,6 +83,7 @@ function localBackend() {
     },
     async update(name, id, data) { col(name)[id] = { ...col(name)[id], ...data }; save(); },
     async remove(name, id) { delete col(name)[id]; save(); },
+    async get(name, id) { const d = col(name)[id]; return d ? { id, ...d } : null; },
     async getMeta(key) { return col('meta')[key]; },
     async setMeta(key, val) { col('meta')[key] = val; save(); },
     async exportAll() { return db; },
@@ -125,6 +135,10 @@ async function firebaseBackend() {
     },
     async update(name, id, data) { fs.updateDoc(fs.doc(colRef(name), id), data); },
     async remove(name, id) { fs.deleteDoc(fs.doc(colRef(name), id)); },
+    async get(name, id) {
+      const s = await fs.getDoc(fs.doc(colRef(name), id));
+      return s.exists() ? { id: s.id, ...s.data() } : null;
+    },
     async getMeta(key) {
       const s = await fs.getDoc(metaRef(key));
       return s.exists() ? s.data() : null;

@@ -199,3 +199,21 @@ textarea { resize: vertical; }
 .summary { text-align: center; font-weight: 700; font-size: 18px; margin: 8px 0; min-height: 1.5em; }
 .banner-inline { background: #fff4d6; color: #6b5200; border-radius: 12px; padding: 10px 12px; font-size: 14px; }
 @media (prefers-color-scheme: dark) { .banner-inline { background: #3a3218; color: #f0d98a; } }
+
+/* カルテ */
+.history-head { display: flex; align-items: center; justify-content: space-between; }
+.sides { margin: 4px 0 12px; }
+.side-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px dashed var(--line); }
+.side-row span { flex: 1; font-weight: 600; }
+.chip.lr { min-width: 56px; }
+.chip.small { min-height: 40px; min-width: 48px; padding: 6px 10px; font-size: 14px; }
+.chips.meridians { margin: 8px 0; gap: 6px; }
+.chips.points { max-height: 320px; overflow-y: auto; }
+.chips.points .chip { display: flex; flex-direction: column; align-items: center; border-radius: 14px; line-height: 1.2; padding: 6px 12px; }
+.chips.points .chip small { font-weight: 400; font-size: 11px; opacity: 0.8; }
+.photos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 8px; }
+.photos.big { grid-template-columns: 1fr; }
+.photo { position: relative; background: var(--bg); border-radius: 10px; overflow: hidden; min-height: 60px; display: flex; align-items: center; justify-content: center; }
+.photo img { width: 100%; display: block; }
+.photo button { position: absolute; top: 4px; right: 4px; width: 36px; height: 36px; border-radius: 50%; border: none; background: rgba(0, 0, 0, 0.6); color: #fff; font-size: 16px; }
+.photo-btn { text-align: center; line-height: 32px; color: var(--text); font-size: 17px; }

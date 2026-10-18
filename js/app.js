@@ -3,9 +3,11 @@ import {
   initStore, isLocalMode, signIn, signOut,
   watchClients, saveClient, deleteClient,
   watchReservations, addReservation, updateReservation,
+  watchVisits, addVisit, updateVisit, deleteVisit, addPhoto, getPhoto, deletePhoto, updateClient,
   getSettings, saveSettings, exportAll,
 } from './store.js';
 import { eventTitle, toIso, isConfigured, callCalendar, makeSecret } from './calendar.js';
+import { POINTS, MERIDIANS, pointByCode } from './points.js';
 import { REFERRAL_TYPES, INITIALS } from './defaults.js';
 
 const $ = (id) => document.getElementById(id);
@@ -13,6 +15,10 @@ const state = {
   clients: [],
   settings: null,
   resv: [],
+  visits: [],
+  vf: {},              // カルテ入力中の値
+  visitId: null,       // 詳細を見ている来院記録
+  visitFrom: 'detail', // カルテ入力を開いた画面（もどる先）
   view: 'resv',        // いま表示している画面
   day: null,           // 予約一覧で見ている日
   rf: {},              // 予約フォームで選んだ値
@@ -74,6 +80,12 @@ initStore(async (user) => {
     if (state.view === 'detail') renderDetail();
     retryCalendar();
   }));
+  state.unwatch.push(watchVisits((list) => {
+    state.visits = list;
+    if (state.view === 'detail') renderDetail();
+    if (state.view === 'visitdetail') renderVisitDetail();
+    if (state.view === 'resvdetail') renderResvDetail();
+  }));
   show('resv');
 }).catch((e) => {
   $('loading').textContent = '読み込みに失敗しました。電波を確認して、もう一度開いてください。';
@@ -112,6 +124,7 @@ const VIEWS = {
   resv: ['tab-resv', 'resv'], resvform: ['view-resvform', 'resv'], resvdetail: ['view-resvdetail', 'resv'],
   clients: ['tab-clients', 'clients'], detail: ['view-detail', 'clients'], form: ['view-form', 'clients'],
   settings: ['tab-settings', 'settings'],
+  visitform: ['view-visitform', 'clients'], visitdetail: ['view-visitdetail', 'clients'],
 };
 function show(view) {
   state.view = view;
@@ -129,6 +142,8 @@ document.querySelectorAll('[data-back]').forEach((b) => b.addEventListener('clic
   else if (v === 'form') show(state.currentId ? 'detail' : 'clients');
   else if (v === 'resvform') show(state.rf.editId ? 'resvdetail' : 'resv');
   else if (v === 'resvdetail') show('resv');
+  else if (v === 'visitform') show(state.visitFrom);
+  else if (v === 'visitdetail') show('detail');
   else show('clients');
 }));
 
@@ -186,6 +201,7 @@ function renderDetail() {
     </div>
     ${introduced.length ? `<p class="small">この人が紹介したお客さん：${introduced.map((x) => esc(fullName(x))).join('、')}</p>` : ''}
     ${upcomingOf(c.id)}`;
+  renderVisitList(c.id);
 }
 $('editClient').addEventListener('click', () => openForm(state.clients.find((x) => x.id === state.currentId)));
 $('removeClient').addEventListener('click', async () => {
@@ -508,7 +524,9 @@ function renderResvDetail() {
         <dt>予定の名前</dt><dd>${esc(eventTitle(c, r.course))}</dd>
       </dl>
     </div>`;
-  $('rdDone').hidden = r.status !== 'booked';
+  const v = state.visits.find((x) => x.reservationId === r.id);
+  $('rdDone').hidden = r.status === 'cancelled';
+  $('rdDone').textContent = v ? '📋 カルテを見る' : '✓ 来院済み → カルテを書く';
   $('rdEdit').hidden = r.status !== 'booked';
   $('rdCancel').hidden = r.status !== 'booked';
   $('rdUndo').hidden = r.status === 'booked';
@@ -524,11 +542,13 @@ $('rdCancel').addEventListener('click', async () => {
   syncCalendar({ ...r, status: 'cancelled' });
   show('resv');
 });
-$('rdDone').addEventListener('click', async () => {
+$('rdDone').addEventListener('click', () => {
   const r = curResv();
   if (!r) return;
-  await updateReservation(r.id, { status: 'done' });
-  toast('来院済みにしました（カルテ入力はステップ3で追加します）');
+  const v = state.visits.find((x) => x.reservationId === r.id);
+  if (v) { openVisitDetail(v.id); return; }
+  state.visitFrom = 'resvdetail';
+  openVisitForm({ date: r.date, clientId: r.clientId, course: r.course, reservationId: r.id });
 });
 $('rdUndo').addEventListener('click', async () => {
   const r = curResv();
@@ -585,10 +605,330 @@ function retryCalendar() {
 }
 window.addEventListener('online', retryCalendar);
 
+// ---------- 来院記録（カルテ） ----------
+const sideLabel = (side) => ({ L: 'L', R: 'R', LR: 'L・R' }[side] || '');
+const complaintText = (list = []) => list.map((c) => (c.side ? `${c.name}（${sideLabel(c.side)}）` : c.name)).join('、');
+const pointText = (codes = []) => codes.map((cd) => `${cd} ${pointByCode[cd]?.name || ''}`.trim()).join('、');
+const yen = (n) => `${Number(n || 0).toLocaleString()}円`;
+const visitsOf = (clientId) => state.visits.filter((v) => v.clientId === clientId)
+  .sort((a, b) => (b.date + (b.createdAt || 0)).localeCompare(a.date + (a.createdAt || 0)));
+
+function renderVisitList(clientId) {
+  const list = visitsOf(clientId);
+  $('visitList').innerHTML = list.length ? list.map((v) => `
+    <li data-vid="${esc(v.id)}">
+      <div class="main">
+        <div class="title">${esc(dayLabel(v.date))}　${v.course}分　${v.freeInvite ? '<span class="tag">無料招待</span>' : esc(yen(v.amount))}${v.photoIds?.length ? ' 📷' : ''}</div>
+        <div class="meta">${esc(complaintText(v.complaints) || v.complaintText || '（主訴なし）')}${v.points?.length ? `・経穴${v.points.length}` : ''}</div>
+      </div><span class="chev">›</span>
+    </li>`).join('') : '<li class="empty">まだ来院記録がありません</li>';
+}
+$('visitList').addEventListener('click', (e) => {
+  const li = e.target.closest('[data-vid]');
+  if (li) openVisitDetail(li.dataset.vid);
+});
+$('newVisit').addEventListener('click', () => {
+  state.visitFrom = 'detail';
+  const last = visitsOf(state.currentId)[0];
+  openVisitForm({ date: today(), clientId: state.currentId, course: last?.course || 60 });
+});
+
+// ----- カルテ入力 -----
+function openVisitForm(init, existing = null) {
+  const c = clientOf(init.clientId || existing?.clientId);
+  const firstTime = !visitsOf(c?.id).some((v) => v.id !== existing?.id);
+  const free = existing ? existing.freeInvite : firstTime && c?.referral?.type === 'card';
+  const course = existing?.course || init.course || 60;
+  state.vf = {
+    id: existing?.id || null,
+    clientId: c?.id,
+    reservationId: existing?.reservationId ?? init.reservationId ?? '',
+    date: existing?.date || init.date || today(),
+    course,
+    complaints: (existing?.complaints || []).map((x) => ({ name: x.name, L: x.side?.includes('L'), R: x.side?.includes('R') })),
+    complaintText: existing?.complaintText || '',
+    points: [...(existing?.points || [])],
+    memo: existing?.memo || '',
+    payment: free ? '無料招待' : '現金',
+    amount: existing ? existing.amount : (free ? 0 : priceOf(course)),
+    photoIds: [...(existing?.photoIds || [])],
+    newPhotos: [],
+    removedPhotos: [],
+    meridian: '',
+  };
+  $('vfTitle').textContent = existing ? 'カルテを編集' : 'カルテを書く';
+  $('vfWho').textContent = c ? `${fullName(c)} さん` : '';
+  $('vfDate').value = state.vf.date;
+  $('vfComplaintText').value = state.vf.complaintText;
+  $('vfMemo').value = state.vf.memo;
+  $('vfPointSearch').value = '';
+  renderVisitForm();
+  renderVfPhotos();
+  show('visitform');
+}
+
+function renderVisitForm() {
+  const vf = state.vf;
+  const st = state.settings;
+  $('vfCourses').innerHTML = st.courses.map((c) =>
+    `<button type="button" class="chip${c.min === vf.course ? ' on' : ''}" data-m="${c.min}">${c.min}分</button>`).join('');
+  // 主訴
+  const names = [...st.complaints, ...vf.complaints.map((x) => x.name).filter((n) => !st.complaints.includes(n))];
+  const selected = new Set(vf.complaints.map((x) => x.name));
+  $('vfComplaints').innerHTML = names.map((n) =>
+    `<button type="button" class="chip${selected.has(n) ? ' on' : ''}" data-cp="${esc(n)}">${esc(n)}</button>`).join('');
+  $('vfSides').innerHTML = vf.complaints.map((x, i) => `
+    <div class="side-row"><span>${esc(x.name)}</span>
+      <button type="button" class="chip lr${x.L ? ' on' : ''}" data-side="L" data-i="${i}">L</button>
+      <button type="button" class="chip lr${x.R ? ' on' : ''}" data-side="R" data-i="${i}">R</button>
+    </div>`).join('');
+  // 経穴
+  $('vfPointCount').textContent = vf.points.length ? `${vf.points.length}穴` : '';
+  $('vfPointsSel').innerHTML = vf.points.map((cd) =>
+    `<button type="button" class="chip on" data-pt="${esc(cd)}">${esc(cd)} ${esc(pointByCode[cd]?.name || '')} ✕</button>`).join('');
+  $('vfMeridians').innerHTML = `<button type="button" class="chip small${vf.meridian === '' ? ' on' : ''}" data-mer="">よく使う</button>`
+    + MERIDIANS.map((m) => `<button type="button" class="chip small${vf.meridian === m.code ? ' on' : ''}" data-mer="${m.code}" title="${m.name}">${m.code}</button>`).join('');
+  renderPointList();
+  // 支払い
+  $('vfPay').innerHTML = ['現金', '無料招待'].map((p) =>
+    `<button type="button" class="chip${vf.payment === p ? ' on' : ''}" data-pay="${p}">${p}</button>`).join('');
+  $('vfAmountRow').hidden = vf.payment === '無料招待';
+  $('vfAmount').value = vf.amount;
+}
+
+function renderPointList() {
+  const vf = state.vf;
+  const q = norm($('vfPointSearch').value);
+  let list;
+  if (q) {
+    list = POINTS.filter((p) => norm(p.code).startsWith(q) || norm(p.name).includes(q) || norm(p.yomi).includes(q)).slice(0, 40);
+  } else if (vf.meridian) {
+    list = POINTS.filter((p) => p.meridian === vf.meridian);
+  } else {
+    // よく使う経穴（これまでのカルテで使った回数が多い順）
+    const count = {};
+    state.visits.forEach((v) => (v.points || []).forEach((cd) => { count[cd] = (count[cd] || 0) + 1; }));
+    list = Object.entries(count).sort((a, b) => b[1] - a[1]).slice(0, 30).map(([cd]) => pointByCode[cd]).filter(Boolean);
+  }
+  const sel = new Set(vf.points);
+  $('vfPointList').innerHTML = list.length
+    ? list.map((p) => `<button type="button" class="chip${sel.has(p.code) ? ' on' : ''}" data-pt="${p.code}"><b>${p.code}</b> ${esc(p.name)}<small>${esc(p.yomi)}</small></button>`).join('')
+    : `<p class="muted small">${q ? '見つかりません' : 'まだ使った経穴がありません。上の検索か、経絡（LU・LI…）から選んでください'}</p>`;
+}
+
+$('vfCourses').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-m]');
+  if (!b) return;
+  state.vf.course = Number(b.dataset.m);
+  if (state.vf.payment === '現金') state.vf.amount = priceOf(state.vf.course);
+  renderVisitForm();
+});
+$('vfComplaints').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-cp]');
+  if (!b) return;
+  const vf = state.vf;
+  const i = vf.complaints.findIndex((x) => x.name === b.dataset.cp);
+  if (i >= 0) vf.complaints.splice(i, 1); else vf.complaints.push({ name: b.dataset.cp, L: false, R: false });
+  renderVisitForm();
+});
+$('vfSides').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-side]');
+  if (!b) return;
+  const x = state.vf.complaints[Number(b.dataset.i)];
+  x[b.dataset.side] = !x[b.dataset.side];
+  renderVisitForm();
+});
+const togglePoint = (e) => {
+  const b = e.target.closest('[data-pt]');
+  if (!b) return;
+  const pts = state.vf.points;
+  const i = pts.indexOf(b.dataset.pt);
+  if (i >= 0) pts.splice(i, 1); else pts.push(b.dataset.pt);
+  renderVisitForm();
+};
+$('vfPointsSel').addEventListener('click', togglePoint);
+$('vfPointList').addEventListener('click', togglePoint);
+$('vfPointSearch').addEventListener('input', renderPointList);
+$('vfMeridians').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-mer]');
+  if (!b) return;
+  state.vf.meridian = b.dataset.mer;
+  $('vfPointSearch').value = '';
+  renderVisitForm();
+});
+$('vfPay').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-pay]');
+  if (!b) return;
+  state.vf.payment = b.dataset.pay;
+  state.vf.amount = b.dataset.pay === '無料招待' ? 0 : priceOf(state.vf.course);
+  renderVisitForm();
+});
+
+// ----- カルテ写真（小さくしてから保存） -----
+function shrinkImage(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = reject;
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = reject;
+      img.onload = () => {
+        const max = 1600;
+        const r = Math.min(1, max / Math.max(img.width, img.height));
+        const cv = document.createElement('canvas');
+        cv.width = Math.round(img.width * r);
+        cv.height = Math.round(img.height * r);
+        cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+        let q = 0.75;
+        let data = cv.toDataURL('image/jpeg', q);
+        while (data.length > 400000 && q > 0.35) { q -= 0.1; data = cv.toDataURL('image/jpeg', q); }
+        resolve(data);
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+$('vfPhotoInput').addEventListener('change', async (e) => {
+  const file = e.target.files?.[0];
+  e.target.value = '';
+  if (!file) return;
+  try {
+    state.vf.newPhotos.push(await shrinkImage(file));
+    renderVfPhotos();
+  } catch {
+    toast('写真を読み込めませんでした');
+  }
+});
+async function renderVfPhotos() {
+  const vf = state.vf;
+  const olds = await Promise.all(vf.photoIds.map(async (id) => ({ id, data: (await getPhoto(id).catch(() => null))?.data })));
+  $('vfPhotos').innerHTML = [
+    ...olds.map((p) => `<div class="photo">${p.data ? `<img src="${p.data}" alt="カルテ写真">` : '<span class="muted small">読み込み中…</span>'}<button type="button" data-rm-old="${esc(p.id)}">✕</button></div>`),
+    ...vf.newPhotos.map((d, i) => `<div class="photo"><img src="${d}" alt="カルテ写真"><button type="button" data-rm-new="${i}">✕</button></div>`),
+  ].join('');
+}
+$('vfPhotos').addEventListener('click', (e) => {
+  const vf = state.vf;
+  const o = e.target.closest('[data-rm-old]');
+  const n = e.target.closest('[data-rm-new]');
+  if (!o && !n) return;
+  if (!confirm('この写真を外しますか？')) return;
+  if (o) { vf.photoIds = vf.photoIds.filter((x) => x !== o.dataset.rmOld); vf.removedPhotos.push(o.dataset.rmOld); }
+  if (n) vf.newPhotos.splice(Number(n.dataset.rmNew), 1);
+  renderVfPhotos();
+});
+
+$('vfSave').addEventListener('click', async () => {
+  const vf = state.vf;
+  const c = clientOf(vf.clientId);
+  if (!c) { toast('お客さんが見つかりません'); return; }
+  const date = $('vfDate').value || today();
+  const free = vf.payment === '無料招待';
+  const amount = free ? 0 : Math.max(0, parseInt(String($('vfAmount').value).normalize('NFKC'), 10) || 0);
+  $('vfSave').disabled = true;
+  try {
+    const newIds = [];
+    for (const data of vf.newPhotos) newIds.push(await addPhoto({ clientId: c.id, date, data }));
+    for (const id of vf.removedPhotos) await deletePhoto(id);
+    const data = {
+      date, clientId: c.id, reservationId: vf.reservationId || '', course: vf.course,
+      complaints: vf.complaints.map((x) => ({ name: x.name, side: `${x.L ? 'L' : ''}${x.R ? 'R' : ''}` })),
+      complaintText: $('vfComplaintText').value.trim(),
+      points: vf.points, memo: $('vfMemo').value.trim(),
+      payment: vf.payment, amount, freeInvite: free,
+      photoIds: [...vf.photoIds, ...newIds],
+    };
+    let id = vf.id;
+    if (id) await updateVisit(id, data); else id = await addVisit(data);
+    // 予約は「来院済み」に、初回来院日が空ならこの日を入れる
+    if (vf.reservationId) await updateReservation(vf.reservationId, { status: 'done' });
+    if (!c.firstVisit || c.firstVisit > date) await updateClient(c.id, { firstVisit: date });
+    state.currentId = c.id;
+    toast('カルテを保存しました');
+    openVisitDetail(id);
+  } finally {
+    $('vfSave').disabled = false;
+  }
+});
+
+// ----- 来院記録の詳細 -----
+function openVisitDetail(id) {
+  state.visitId = id;
+  const v = state.visits.find((x) => x.id === id);
+  if (v) state.currentId = v.clientId;
+  renderVisitDetail();
+  show('visitdetail');
+}
+async function renderVisitDetail() {
+  const v = state.visits.find((x) => x.id === state.visitId);
+  if (!v) { $('vdBody').innerHTML = '<p class="muted">保存中…</p>'; return; }
+  const c = clientOf(v.clientId);
+  $('vdBody').innerHTML = `
+    <h1>${esc(dayLabel(v.date))} ${esc(c ? fullName(c) : '')}</h1>
+    <div class="card">
+      <dl class="info">
+        <dt>コース</dt><dd>${v.course}分</dd>
+        <dt>支払い</dt><dd>${v.freeInvite ? '無料招待（0円）' : `${esc(v.payment)}　${esc(yen(v.amount))}`}</dd>
+        <dt>主訴</dt><dd>${esc(complaintText(v.complaints) || '—')}</dd>
+        ${v.complaintText ? `<dt>主訴のメモ</dt><dd>${esc(v.complaintText)}</dd>` : ''}
+        <dt>経穴</dt><dd>${esc(pointText(v.points) || '—')}</dd>
+      </dl>
+      ${v.memo ? `<div class="memo">${esc(v.memo)}</div>` : ''}
+    </div>
+    <div id="vdPhotos" class="photos big"></div>`;
+  const imgs = await Promise.all((v.photoIds || []).map((pid) => getPhoto(pid).catch(() => null)));
+  if (state.visitId !== v.id) return;
+  $('vdPhotos').innerHTML = imgs.filter(Boolean).map((p) => `<div class="photo"><img src="${p.data}" alt="カルテ写真"></div>`).join('');
+}
+$('vdEdit').addEventListener('click', () => {
+  const v = state.visits.find((x) => x.id === state.visitId);
+  if (!v) return;
+  state.visitFrom = 'visitdetail';
+  openVisitForm({}, v);
+});
+$('vdDelete').addEventListener('click', async () => {
+  const v = state.visits.find((x) => x.id === state.visitId);
+  if (!v || !confirm('この来院記録（カルテ）を削除しますか？\n写真も消えます。元に戻せません。')) return;
+  for (const pid of v.photoIds || []) await deletePhoto(pid);
+  await deleteVisit(v.id);
+  toast('削除しました');
+  show('detail');
+  renderDetail();
+});
+
+// 名前を外した「相談用」の文章を作ってコピーする
+$('vdCopy').addEventListener('click', async () => {
+  const v = state.visits.find((x) => x.id === state.visitId);
+  if (!v) return;
+  const c = clientOf(v.clientId) || {};
+  const prof = [c.ageGroup, c.gender, c.job, c.height && `身長${c.height}cm`, c.weight && `体重${c.weight}kg`].filter(Boolean).join('・');
+  const one = (x) => [
+    `主訴：${complaintText(x.complaints) || 'なし'}${x.complaintText ? `（${x.complaintText}）` : ''}`,
+    `経穴：${pointText(x.points) || 'なし'}`,
+    x.memo ? `施術メモ：${x.memo}` : '',
+  ].filter(Boolean).join('\n');
+  const past = visitsOf(v.clientId).filter((x) => x.id !== v.id && x.date <= v.date).slice(0, 5);
+  const text = [
+    '【施術の相談】（お客さんの名前など、個人が特定できる情報は外しています）',
+    `■ お客さん：${prof || '（未登録）'}`,
+    `■ 今回（${v.date}・${v.course}分）`,
+    one(v),
+    past.length ? `■ これまでの経過（新しい順・${past.length}回分）\n${past.map((x) => `- ${x.date}（${x.course}分）\n${one(x).replace(/^/gm, '  ')}`).join('\n')}` : '',
+    '■ 相談したいこと：',
+  ].filter(Boolean).join('\n\n');
+  try {
+    await navigator.clipboard.writeText(text);
+    toast('コピーしました。メモに名前が入っていないか確認してから貼ってください');
+  } catch {
+    prompt('コピーできなかったので、下の文を長押しでコピーしてください', text);
+  }
+});
+
 // ---------- 設定 ----------
 function fillSettingsForm() {
   const f = $('settingsForm');
-  for (const k of ['ageGroups', 'genders', 'jobs']) f[k].value = state.settings[k].join('\n');
+  for (const k of ['ageGroups', 'genders', 'jobs', 'complaints']) f[k].value = state.settings[k].join('\n');
   fillCalForms();
 }
 function fillCalForms() {
@@ -665,7 +1005,7 @@ $('settingsForm').addEventListener('submit', async (e) => {
   const f = e.target;
   const lines = (v) => v.split('\n').map((x) => x.trim()).filter(Boolean);
   const next = { ...state.settings };
-  for (const k of ['ageGroups', 'genders', 'jobs']) {
+  for (const k of ['ageGroups', 'genders', 'jobs', 'complaints']) {
     const l = lines(f[k].value);
     if (l.length) next[k] = l;
   }
